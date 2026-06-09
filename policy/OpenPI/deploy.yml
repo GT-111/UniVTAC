@@ -1,0 +1,17 @@
+policy_name: OpenPI
+seed: 0
+
+# Path to trained openpi checkpoint (directory containing model.safetensors + assets/)
+checkpoint_dir: /data/temp_storage/exps/openpi/openpi-assets/checkpoints/pi05_base_pytorch
+
+# Tactile fusion mode — fallback when checkpoint has no metadata.pt
+# Auto-detected from metadata.pt for fine-tuned checkpoints.
+#   left_only (default):  head + wrist + left tactile
+#   right_only:           head + wrist + right tactile
+#   side_by_side:         head + wrist + left||right tactile combined
+#   drop_wrist:           head + left tactile + right tactile
+#   none:                 head + wrist only (no tactile)
+tactile_mode: left_only
+
+instruction_type: seen
+instuction_file: null

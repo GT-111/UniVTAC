@@ -13,6 +13,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # NOTE: Add dependencies
+    "opencv-python",
     "debugpy",  # for debugging scripts that are run from the terminal, e.g. RL training scripts
     # "torch==2.5.1",
     # "torchvision==0.20.1",

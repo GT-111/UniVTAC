@@ -17,11 +17,23 @@ git clone https://github.com/byml-c/UniVTAC.git
 cd UniVTAC
 ```
 
-### Step 2: Create a Conda Environment
+### Prerequisites
+
+Install system-level build dependencies (Ubuntu/Debian):
 
 ```bash
-conda create -n UniVTAC python=3.10 -y
-conda activate UniVTAC
+sudo apt install -y cmake build-essential gcc-11 g++-11 pkg-config
+```
+
+For CUDA Toolkit 12.4, install from [NVIDIA's download archive](https://developer.nvidia.com/cuda-12-4-0-download-archive), or use your system CUDA if already installed (check with `nvcc --version`).
+
+> **Note:** `uv` manages Python packages, but system-level tools (gcc, cmake, CUDA) must be installed separately. The original conda environment file at `third_party/TacEx/source/tacex_uipc/libuipc/conda/env.yaml` lists the required versions for reference.
+
+### Step 2: Create a Virtual Environment with uv
+
+```bash
+uv venv --python 3.10 --seed
+source .venv/bin/activate
 ```
 
 ### Step 3: Install TacEx (Modified Source)
@@ -44,10 +56,9 @@ If you have a working Isaac Lab environment, you can directly install TacEx. Oth
 
 ```bash
 # install cuda-enabled pytorch
-pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-pip install --upgrade pip
+uv pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
 # install isaac sim packages
-pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+uv pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
 ```
 
 > verify that the Isaac Sim installation works by calling `isaacsim` in the terminal
@@ -62,7 +73,7 @@ cd IsaacLab
 # use Isaac Lab version 2.1.1
 git checkout v2.1.1
 # activate the Isaac Sim python env
-conda activate UniVTAC
+source .venv/bin/activate
 # install isaaclab extensions (with --editable flag)
 ./isaaclab.sh --install # or "./isaaclab.sh -i"
 ```
@@ -70,7 +81,7 @@ conda activate UniVTAC
 To verify the Isaac Lab Installation:
 
 ```bash
-conda activate UniVTAC
+source .venv/bin/activate
 python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
 ```
 
@@ -80,7 +91,7 @@ python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --head
 
 **1.** Activate the Isaac Env
 ```bash
-conda activate UniVTAC
+source .venv/bin/activate
 ```
 
 **2.** Install the core packages of TacEx
@@ -89,7 +100,9 @@ conda activate UniVTAC
 ./tacex.sh -i
 ```
 
-> You can install the extensions one by one via e.g. `python -m pip install -e source/tacex_uipc`
+> You can install the extensions one by one via e.g. `uv pip install -e source/tacex_uipc`
+>
+> **Note:** `tacex`, `tacex_assets`, and `tacex_tasks` import Isaac Sim modules (`omni`, `isaaclab_tasks`) at runtime. Make sure Isaac Sim is installed before verifying the import.
 
 **3.** Verify that TacEx works by running an example:
 
@@ -128,16 +141,16 @@ export CMAKE_TOOLCHAIN_FILE="$HOME/Toolchain/vcpkg/scripts/buildsystems/vcpkg.cm
 
 ```bash
 # Inside the root dir of TacEx repo
-conda activate UniVTAC
-conda env update -n UniVTAC --file ./source/tacex_uipc/libuipc/conda/env.yaml
+source .venv/bin/activate
 ```
-> If Cuda 12.4 does not work for, try updating your Nvidia drivers or try to use an older Cuda version by adjusting the env.yaml file (e.g. Cuda 12.2).
+> **Note:** The build dependencies (`cmake 3.26`, `gcc 11.4`, `cuda-toolkit 12.4`) must be installed at the system level — see [Prerequisites](#prerequisites) above. The original conda environment file is at `source/tacex_uipc/libuipc/conda/env.yaml` for reference.
+> If Cuda 12.4 does not work, try updating your Nvidia drivers or use an older Cuda version.
 
 **2.** Install `tacex_uipc`
 ```bash
 # This also builds `libuipc` and pip installs the python bindings.
-conda activate UniVTAC
-pip install -e source/tacex_uipc -v
+source .venv/bin/activate
+uv pip install -e source/tacex_uipc -v
 ```
 > You can also install all TacEx packages with `./tacex.sh -i all`.
 

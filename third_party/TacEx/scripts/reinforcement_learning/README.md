@@ -12,4 +12,4 @@ You can list all TacEx environments with:
 isaaclab.sh -p scripts/reinforcement_learning/list_envs.py
 ```
 > `isaaclab.sh` is the script file in the Isaac Lab repository.
-> If you installed Isaac Lab in a conda env just use `python`.
+> If you installed Isaac Lab in a virtual environment just use `python`.

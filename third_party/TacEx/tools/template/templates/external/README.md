@@ -15,14 +15,14 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
 ## Installation
 
 - Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda installation as it simplifies calling Python scripts from the terminal.
+  We recommend using a virtual environment (uv or venv) as it simplifies calling Python scripts from the terminal.
 
 - Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
 
 - Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
 
     ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv
     python -m pip install -e source/{{ name }}
 
 - Verify that the extension is correctly installed by:
@@ -33,14 +33,14 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
         (in the `scripts/list_envs.py` file) so that it can be listed.
 
         ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv
         python scripts/list_envs.py
         ```
 
     - Running a task:
 
         ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv
         python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
         ```
 
@@ -51,13 +51,13 @@ It allows you to develop in an isolated environment, outside of the core Isaac L
         - Zero-action agent
 
             ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv
             python scripts/zero_agent.py --task=<TASK_NAME>
             ```
         - Random-action agent
 
             ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
+            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv
             python scripts/random_agent.py --task=<TASK_NAME>
             ```
 

@@ -51,7 +51,7 @@ extract_isaacsim_path() {
         # throw an error if no path is found
         echo -e "[ERROR] Unable to find the Isaac Sim directory: '${isaac_path}'" >&2
         echo -e "\tThis could be due to the following reasons:" >&2
-        echo -e "\t1. Conda environment is not activated." >&2
+        echo -e "\t1. Virtual environment is not activated." >&2
         echo -e "\t2. Isaac Sim pip package 'isaacsim-rl' is not installed." >&2
         echo -e "\t3. Isaac Sim directory is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim" >&2
         # exit the script
@@ -63,8 +63,12 @@ extract_isaacsim_path() {
 
 # extract the python from isaacsim
 extract_python_exe() {
+    # check if using uv venv
+    if ! [[ -z "${VIRTUAL_ENV}" ]]; then
+        # use venv python
+        local python_exe=${VIRTUAL_ENV}/bin/python
     # check if using conda
-    if ! [[ -z "${CONDA_PREFIX}" ]]; then
+    elif ! [[ -z "${CONDA_PREFIX}" ]]; then
         # use conda python
         local python_exe=${CONDA_PREFIX}/bin/python
     else
@@ -84,7 +88,7 @@ extract_python_exe() {
     if [ ! -f "${python_exe}" ]; then
         echo -e "[ERROR] Unable to find any Python executable at path: '${python_exe}'" >&2
         echo -e "\tThis could be due to the following reasons:" >&2
-        echo -e "\t1. Conda environment is not activated." >&2
+        echo -e "\t1. Virtual environment is not activated." >&2
         echo -e "\t2. Isaac Sim pip package 'isaacsim-rl' is not installed." >&2
         echo -e "\t3. Python executable is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim/python.sh" >&2
         exit 1
@@ -116,113 +120,71 @@ extract_isaacsim_exe() {
     echo ${isaacsim_exe}
 }
 
-# check if input directory is a python extension and install the module
-install_isaaclab_extension() {
-    # retrieve the python executable
-    python_exe=$(extract_python_exe)
-    # if the directory contains setup.py then install the python module
-    if [ -f "$1/setup.py" ]; then
-        echo -e "\t module: $1"
-        ${python_exe} -m pip install --editable $1 -v
+# auto-detect pip command: prefer uv pip if available, fall back to pip
+_pip_install() {
+    if command -v uv &> /dev/null; then
+        uv pip install "$@"
+    else
+        python -m pip install "$@"
     fi
 }
 
-# setup anaconda environment for Isaac Lab
-setup_conda_env() {
-    # get environment name from input
+# check if input directory is a python extension and install the module
+install_isaaclab_extension() {
+    # if the directory contains setup.py then install the python module
+    if [ -f "$1/setup.py" ]; then
+        echo -e "\t module: $1"
+        _pip_install --editable "$1" -v
+    fi
+}
+
+# setup uv virtual environment for Isaac Lab
+setup_uv_env() {
+    # get environment name from input (optional, for naming the venv directory)
     local env_name=$1
-    # check conda is installed
-    if ! command -v conda &> /dev/null
+    local env_dir="${TACEX_PATH}/.venv"
+
+    # check uv is installed
+    if ! command -v uv &> /dev/null
     then
-        echo "[ERROR] Conda could not be found. Please install conda and try again."
+        echo "[ERROR] uv could not be found. Install uv and try again:"
+        echo "        curl -LsSf https://astral.sh/uv/install.sh | sh"
         exit 1
     fi
 
     # check if the environment exists
-    if { conda env list | grep -w ${env_name}; } >/dev/null 2>&1; then
-        echo -e "[INFO] Conda environment named '${env_name}' already exists."
+    if [ -d "${env_dir}" ]; then
+        echo -e "[INFO] uv environment already exists at '${env_dir}'."
     else
-        echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        echo -e "[INFO] Creating uv environment at '${env_dir}'..."
+        uv venv --python 3.10 --seed "${env_dir}"
     fi
 
-    # cache current paths for later
-    cache_pythonpath=$PYTHONPATH
-    cache_ld_library_path=$LD_LIBRARY_PATH
-    # clear any existing files
-    rm -f ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
-    rm -f ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
     # activate the environment
-    source $(conda info --base)/etc/profile.d/conda.sh
-    conda activate ${env_name}
-    # setup directories to load Isaac Sim variables
-    mkdir -p ${CONDA_PREFIX}/etc/conda/activate.d
-    mkdir -p ${CONDA_PREFIX}/etc/conda/deactivate.d
+    source "${env_dir}/bin/activate"
 
-    # add variables to environment during activation
-    printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for Isaac Lab' \
-        'export ISAACLAB_PATH='${ISAACLAB_PATH}'' \
-        'alias isaaclab='${ISAACLAB_PATH}'/isaaclab.sh' \
-        '' \
-        '# show icon if not running headless' \
-        'export RESOURCE_NAME="IsaacSim"' \
-        '' > ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
+    # set up environment variables
+    export ISAACLAB_PATH="${ISAACLAB_PATH}"
+    alias isaaclab="${ISAACLAB_PATH}/isaaclab.sh"
+    export RESOURCE_NAME="IsaacSim"
 
-    # check if we have _isaac_sim directory -> if so that means binaries were installed.
-    # we need to setup conda variables to load the binaries
-    local isaacsim_setup_conda_env_script=${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh
-
-    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
-        # add variables to environment during activation
-        printf '%s\n' \
-            '# for Isaac Sim' \
-            'source '${isaacsim_setup_conda_env_script}'' \
-            '' >> ${CONDA_PREFIX}/etc/conda/activate.d/setenv.sh
-    fi
-
-    # reactivate the environment to load the variables
-    # needed because deactivate complains about Isaac Lab alias since it otherwise doesn't exist
-    conda activate ${env_name}
-
-    # remove variables from environment during deactivation
-    printf '%s\n' '#!/usr/bin/env bash' '' \
-        '# for Isaac Lab' \
-        'unalias isaaclab &>/dev/null' \
-        'unset ISAACLAB_PATH' \
-        '' \
-        '# restore paths' \
-        'export PYTHONPATH='${cache_pythonpath}'' \
-        'export LD_LIBRARY_PATH='${cache_ld_library_path}'' \
-        '' \
-        '# for Isaac Sim' \
-        'unset RESOURCE_NAME' \
-        '' > ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
-
-    # check if we have _isaac_sim directory -> if so that means binaries were installed.
-    if [ -f "${isaacsim_setup_conda_env_script}" ]; then
-        # add variables to environment during activation
-        printf '%s\n' \
-            '# for Isaac Sim' \
-            'unset CARB_APP_PATH' \
-            'unset EXP_PATH' \
-            'unset ISAAC_PATH' \
-            '' >> ${CONDA_PREFIX}/etc/conda/deactivate.d/unsetenv.sh
+    # source Isaac Sim environment variables if available
+    local isaacsim_setup_script="${ISAACLAB_PATH}/_isaac_sim/setup_conda_env.sh"
+    if [ -f "${isaacsim_setup_script}" ]; then
+        source "${isaacsim_setup_script}"
     fi
 
     # install some extra dependencies
     echo -e "[INFO] Installing extra dependencies (this might take a few minutes)..."
-    conda install -c conda-forge -y importlib_metadata &> /dev/null
+    uv pip install importlib_metadata &> /dev/null
 
-    # deactivate the environment
-    conda deactivate
     # add information to the user about alias
-    echo -e "[INFO] Added 'isaaclab' alias to conda environment for 'isaaclab.sh' script."
-    echo -e "[INFO] Created conda environment named '${env_name}'.\n"
-    echo -e "\t\t1. To activate the environment, run:                conda activate ${env_name}"
-    echo -e "\t\t2. To install Isaac Lab extensions, run:            isaaclab -i"
-    echo -e "\t\t4. To perform formatting, run:                      isaaclab -f"
-    echo -e "\t\t5. To deactivate the environment, run:              conda deactivate"
+    echo -e "[INFO] Added 'isaaclab' alias for 'isaaclab.sh' script."
+    echo -e "[INFO] Created uv environment at '${env_dir}'.\n"
+    echo -e "\t\t1. To activate the environment, run:                source ${env_dir}/bin/activate"
+    echo -e "\t\t2. To install TacEx extensions, run:                ./tacex.sh -i"
+    echo -e "\t\t4. To perform formatting, run:                      ./tacex.sh -f"
+    echo -e "\t\t5. To deactivate the environment, run:              deactivate"
     echo -e "\n"
 }
 
@@ -243,7 +205,7 @@ update_vscode_settings() {
 
 # print the usage description
 print_help () {
-    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-c] -- Utility to manage Isaac Lab."
+    echo -e "\nusage: $(basename "$0") [-h] [-i] [-f] [-p] [-s] [-t] [-o] [-v] [-d] [-e] -- Utility to manage Isaac Lab."
     echo -e "\noptional arguments:"
     echo -e "\t-h, --help             Display the help content."
     echo -e "\t-i, --install [all]    Install the TacEx core packages. Use 'all' to also install all extra packages [tacex_uipc]."
@@ -254,7 +216,7 @@ print_help () {
     echo -e "\t-o, --docker           Run the docker container helper script (docker/container.sh)."
     echo -e "\t-v, --vscode           Generate the VSCode settings file from template."
     echo -e "\t-d, --docs             Build the documentation from source using sphinx."
-    # echo -e "\t-c, --conda [NAME]       Create the conda environment for Isaac Lab. Default name is 'env_isaaclab'."
+    echo -e "\t-e, --venv [NAME]      Create a uv virtual environment for Isaac Lab. Default name is 'env_isaaclab'."
     echo -e "\n" >&2
 }
 
@@ -277,28 +239,28 @@ while [[ $# -gt 0 ]]; do
         -i|--install)
             # install the python packages in tacex/source directory
             echo "[INFO] Installing extensions inside the TacEx repository..."
-            python_exe=$(extract_python_exe)
             # recursively look into directories and install them
             # this does not check dependencies between extensions
             export -f extract_python_exe
             export -f install_isaaclab_extension
+            export -f _pip_install
             # source directory
             # find -L "${TACEX_PATH}/source" -mindepth 1 -maxdepth 1 -type d -exec bash -c 'install_isaaclab_extension "{}"' \;
             # install core packages
             echo "[INFO] Installing package [tacex]..."
-            ${python_exe} -m pip install -e ${TACEX_PATH}/source/tacex
+            _pip_install -e ${TACEX_PATH}/source/tacex
 
             echo "[INFO] Installing package [tacex_assets]..."
-            ${python_exe} -m pip install -e ${TACEX_PATH}/source/tacex_assets
+            _pip_install -e ${TACEX_PATH}/source/tacex_assets
 
             echo "[INFO] Installing package [tacex_tasks]..."
-            ${python_exe} -m pip install -e ${TACEX_PATH}/source/tacex_tasks
+            _pip_install -e ${TACEX_PATH}/source/tacex_tasks
 
             if [ -z "$2" ]; then
                 echo "[INFO] No extra packages installed."
             elif [ "$2" = "all" ]; then
                 echo "[INFO] Installing package tacex_uipc..."
-                ${python_exe} -m pip install -e ${TACEX_PATH}/source/tacex_uipc -v
+                _pip_install -e ${TACEX_PATH}/source/tacex_uipc -v
                 # consume the extra argument so it isn't processed by the outer loop
                 shift
             # else
@@ -320,27 +282,28 @@ while [[ $# -gt 0 ]]; do
             # unset local variables
             unset extract_python_exe
             unset install_isaaclab_extension
+            unset _pip_install
             shift # past argument
             ;;
-        -c|--conda)
+        -e|--venv)
             # use default name if not provided
             if [ -z "$2" ]; then
-                echo "[INFO] Using default conda environment name: env_isaaclab"
-                conda_env_name="env_isaaclab"
+                echo "[INFO] Using default environment name: env_isaaclab"
+                env_name="env_isaaclab"
             else
-                echo "[INFO] Using conda environment name: $2"
-                conda_env_name=$2
+                echo "[INFO] Using environment name: $2"
+                env_name=$2
                 shift # past argument
             fi
-            # setup the conda environment for Isaac Lab
-            setup_conda_env ${conda_env_name}
+            # setup the uv environment for Isaac Lab
+            setup_uv_env ${env_name}
             shift # past argument
             ;;
         -f|--format)
             # reset the python path to avoid conflicts with pre-commit
             # this is needed because the pre-commit hooks are installed in a separate virtual environment
             # and it uses the system python to run the hooks
-            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+            if [ -n "${VIRTUAL_ENV}" ] || [ -n "${CONDA_DEFAULT_ENV}" ]; then
                 cache_pythonpath=${PYTHONPATH}
                 export PYTHONPATH=""
             fi
@@ -356,7 +319,7 @@ while [[ $# -gt 0 ]]; do
             pre-commit run --all-files
             cd - > /dev/null
             # set the python path back to the original value
-            if [ -n "${CONDA_DEFAULT_ENV}" ]; then
+            if [ -n "${VIRTUAL_ENV}" ] || [ -n "${CONDA_DEFAULT_ENV}" ]; then
                 export PYTHONPATH=${cache_pythonpath}
             fi
             shift # past argument
@@ -412,7 +375,7 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             # install pip packages
             cd ${TACEX_PATH}/docs
-            ${python_exe} -m pip install -r requirements.txt > /dev/null
+            _pip_install -r requirements.txt > /dev/null
             # build the documentation
             ${python_exe} -m sphinx -b html -d _build/doctrees . _build/current
             # open the documentation

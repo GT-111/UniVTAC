@@ -15,8 +15,8 @@ This repo is the code for the paper found here: https://arxiv.org/abs/2403.11898
 
 
 ### Installation
-    conda create -n ViTAL python=3.8
-    conda activate ViTAL
+    uv venv --python 3.8
+    source .venv/bin/activate
     pip install torchvision
     pip install torch
     pip install pyyaml
