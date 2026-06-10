@@ -119,40 +119,38 @@ python ./scripts/reinforcement_learning/skrl/train.py --task TacEx-Ball-Rolling-
 #### Installing TacEx [UIPC]
 The `tacex_uipc` package is responsible for the [UIPC](https://spirimirror.github.io/libuipc-doc/) simulation in TacEx.
 
-**1.** Install the [libuipc dependencies](https://spirimirror.github.io/libuipc-doc/build_install/linux/):
-* If not installed yet, install Vcpkg
+> **Note:** The build process needs `cmake>=3.26`, `gcc-11`/`g++-11`, `cuda-toolkit` (12.x), and `vcpkg`. Install system packages first (see [Prerequisites](#prerequisites) above).
+
+**1.** Install vcpkg and set up the toolchain:
 
 ```bash
-mkdir ~/Toolchain
-cd ~/Toolchain
+mkdir -p ~/Toolchain && cd ~/Toolchain
 git clone https://github.com/microsoft/vcpkg.git
 cd vcpkg
-./bootstrap-vcpkg.sh -disableMetrics
+# Download prebuilt vcpkg binary (avoids needing zip/unzip for bootstrap)
+curl -sL "$(curl -sL https://api.github.com/repos/microsoft/vcpkg-tool/releases/latest | python3 -c "import json,sys; r=json.load(sys.stdin); [print(a['browser_download_url']) for a in r['assets'] if 'vcpkg-glibc' in a['name'] and '.sig' not in a['name']]")" -o vcpkg
+chmod +x vcpkg
 ```
 
-* Set the System Environment Variable  `CMAKE_TOOLCHAIN_FILE` to let CMake detect Vcpkg. If you installed it like above, you can do this:
+**2.** Set environment variables (add to `~/.bashrc` for persistence):
 
 ```bash
-# Write in ~/.bashrc
 export CMAKE_TOOLCHAIN_FILE="$HOME/Toolchain/vcpkg/scripts/buildsystems/vcpkg.cmake"
+export CUDA_HOME=/usr/local/cuda  # or /usr/local/cuda-12.8
 ```
 
-* We also need `CMake 3.26`, `GCC 11.4` and `Cuda 12.4` to build libuipc. Install this into the Isaac Sim python env:
+**3.** Build and install `tacex_uipc`:
 
 ```bash
-# Inside the root dir of TacEx repo
 source .venv/bin/activate
-```
-> **Note:** The build dependencies (`cmake 3.26`, `gcc 11.4`, `cuda-toolkit 12.4`) must be installed at the system level — see [Prerequisites](#prerequisites) above. The original conda environment file is at `source/tacex_uipc/libuipc/conda/env.yaml` for reference.
-> If Cuda 12.4 does not work, try updating your Nvidia drivers or use an older Cuda version.
-
-**2.** Install `tacex_uipc`
-```bash
-# This also builds `libuipc` and pip installs the python bindings.
-source .venv/bin/activate
+# Setup picks cmake from venv, uses env vars for toolchain + compilers
+export CC=/usr/bin/gcc-11
+export CXX=/usr/bin/g++-11
+export CMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-11
 uv pip install -e source/tacex_uipc -v
 ```
-> You can also install all TacEx packages with `./tacex.sh -i all`.
+
+> If using a different CUDA version, set `CUDA_HOME` accordingly. You may also need `CMAKE_CUDA_ARCHITECTURES` for non-H100 GPUs.
 
 **3.** Verify that the `tacex_uipc` works by running an example:
 

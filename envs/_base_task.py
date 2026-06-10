@@ -14,8 +14,11 @@ from typing import Generator, Literal
 import decorator
 
 import carb
-import omni.ui
 import logging
+try:
+    import omni.ui  # noqa: F401 — only available with GUI/viewport
+except ImportError:
+    pass
 from contextlib import suppress
 from isaacsim.core.api.objects import VisualCuboid
 from isaacsim.core.prims import XFormPrim

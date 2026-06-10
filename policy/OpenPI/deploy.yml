@@ -2,7 +2,7 @@ policy_name: OpenPI
 seed: 0
 
 # Path to trained openpi checkpoint (directory containing model.safetensors + assets/)
-checkpoint_dir: /data/temp_storage/exps/openpi/openpi-assets/checkpoints/pi05_base_pytorch
+checkpoint_dir: /data/temp_storage/exps/checkpoints/pi05_univtac_lift_can/seq_80ep/12000
 
 # Tactile fusion mode — fallback when checkpoint has no metadata.pt
 # Auto-detected from metadata.pt for fine-tuned checkpoints.

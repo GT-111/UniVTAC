@@ -60,37 +60,43 @@ class Policy(BasePolicy):
         ckpt_dir = Path(args.get("checkpoint_dir",
             "/data/temp_storage/exps/openpi/openpi-assets/checkpoints/pi05_base_pytorch"))
 
-        # ---- auto-detect config from checkpoint ----
-        with open(ckpt_dir / "config.json") as f:
-            ckpt_cfg = json.load(f)
-        action_dim = ckpt_cfg.get("action_dim", 32)
-        action_horizon = ckpt_cfg.get("action_horizon", 10)
-
-        # Auto-detect tactile_mode from metadata.pt (fine-tuned checkpoints only)
+        # ---- auto-detect model config ----
         meta_path = ckpt_dir / "metadata.pt"
+        config_json = ckpt_dir / "config.json"
+
         if meta_path.exists():
             meta = torch.load(meta_path, map_location="cpu", weights_only=False)
             train_cfg = meta.get("config", {})
+            model_cfg = train_cfg.get("model", {})
             data_cfg = train_cfg.get("data", {})
+            action_dim = model_cfg.get("action_dim", 32)
+            action_horizon = model_cfg.get("action_horizon", 10)
             self.tactile_mode = data_cfg.get("tactile_mode") or args.get("tactile_mode", "left_only")
-            print(f"[OpenPI] tactile_mode={self.tactile_mode} (from checkpoint)")
-        else:
+            print(f"[OpenPI] tactile_mode={self.tactile_mode} (from checkpoint metadata)")
+        elif config_json.exists():
+            with open(config_json) as f:
+                ckpt_cfg = json.load(f)
+            action_dim = ckpt_cfg.get("action_dim", 32)
+            action_horizon = ckpt_cfg.get("action_horizon", 10)
             self.tactile_mode = args.get("tactile_mode", "left_only")
             print(f"[OpenPI] tactile_mode={self.tactile_mode} (from deploy.yml)")
+        else:
+            raise FileNotFoundError(f"No config found in {ckpt_dir} (need metadata.pt or config.json)")
 
         print(f"[OpenPI] task={self.task_name}, camera={self.camera_type}, "
               f"action_dim={action_dim}, action_horizon={action_horizon}")
 
-        # ---- load norm stats ----
-        # Try franka first (UniVTAC robot), fall back to first available
+        # ---- load norm stats (pi05 uses quantile normalization: q01/q99) ----
         assets = ckpt_dir / "assets"
         norm_dir = assets / "franka" if (assets / "franka").exists() else next(assets.iterdir())
         with open(norm_dir / "norm_stats.json") as f:
             ns = json.load(f)["norm_stats"]
-        self.s_mean = np.array(ns["state"]["mean"], np.float32)
-        self.s_std  = np.array(ns["state"]["std"],  np.float32)
-        self.a_mean = np.array(ns["actions"]["mean"], np.float32)
-        self.a_std  = np.array(ns["actions"]["std"],  np.float32)
+        # Quantile normalization: normalized = (x - q01) / (q99 - q01 + eps) * 2 - 1
+        # (matching openpi transforms.py NormStats / Normalize)
+        self.s_q01 = np.array(ns["state"]["q01"], np.float32)
+        self.s_q99 = np.array(ns["state"]["q99"], np.float32)
+        self.a_q01 = np.array(ns["actions"]["q01"], np.float32)
+        self.a_q99 = np.array(ns["actions"]["q99"], np.float32)
 
         # ---- build model ----
         cfg = Pi0Config(pi05=True, action_dim=action_dim, action_horizon=action_horizon)
@@ -134,9 +140,11 @@ class Policy(BasePolicy):
     def eval(self, task, observation):
         enc = self.encode_obs(observation)
 
-        # Normalize + pad state
+        # Quantile normalize state: (x - q01) / (q99 - q01 + eps) * 2 - 1
         state = np.concatenate([enc["joint"], enc["gripper"]]).astype(np.float32)
-        state_n = (state - self.s_mean) / (self.s_std + 1e-8)
+        _s_q01 = self.s_q01[:len(state)]
+        _s_q99 = self.s_q99[:len(state)]
+        state_n = (state - _s_q01) / (_s_q99 - _s_q01 + 1e-6) * 2.0 - 1.0
         state_pad = np.pad(state_n, (0, max(0, self.action_dim - len(state_n))))
 
         # Tokenize
@@ -162,10 +170,13 @@ class Policy(BasePolicy):
         with torch.no_grad():
             actions = self.model.sample_actions(str(self.device), obs, num_steps=10)
 
-        # Unnormalize first action in chunk → 8D qpos (7 arm + 1 gripper)
-        act = actions[0, 0].cpu().float().numpy()
-        act_denorm = act[:9] * (self.a_std + 1e-8) + self.a_mean
-        qpos = np.concatenate([act_denorm[:7], act_denorm[7:8]])
+        # Quantile unnormalize: (x + 1) / 2 * (q99 - q01) + q01 → 8D qpos
+        act = actions[0, 0].cpu().float().numpy()          # (32,) or (action_dim,)
+        a_dim = min(len(self.a_q01), 9)
+        _a_q01 = self.a_q01[:a_dim]
+        _a_q99 = self.a_q99[:a_dim]
+        act_denorm = (act[:a_dim] + 1.0) / 2.0 * (_a_q99 - _a_q01 + 1e-6) + _a_q01
+        qpos = np.concatenate([act_denorm[:7], act_denorm[7:8]])  # 7 arm + 1 gripper
 
         task.take_action(torch.from_numpy(qpos).to(task.device).float(), action_type="qpos")
 

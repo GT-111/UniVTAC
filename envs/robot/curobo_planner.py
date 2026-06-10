@@ -18,7 +18,7 @@ from curobo.util import logger
 from copy import deepcopy
 
 from pydantic import constr
-logger.setup_logger(level="error", logger_name="curobo")
+logger.setup_curobo_logger(level="error")
 
 from pathlib import Path
 from ..utils.transforms import *

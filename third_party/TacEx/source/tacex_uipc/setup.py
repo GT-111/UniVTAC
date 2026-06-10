@@ -28,8 +28,8 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # NOTE: Add dependencies
-    # "cmake>=3.26",
-    # "pybind11"
+    "cmake>=3.26",
+    "pybind11>=2.11",
     "wildmeshing>=0.4.1"
 ]
 
@@ -67,21 +67,40 @@ class CMakeBuild(build_ext):
 
         # use ENV variable as workaround
         self.DCMAKE_CUDA_ARCHITECTURES = os.environ.get("CMAKE_CUDA_ARCHITECTURES")
-        print("cuda_architectures", self.DCMAKE_CUDA_ARCHITECTURES)
+
+        # Find cmake: prefer venv cmake, fall back to system
+        venv_cmake = os.path.join(sys.prefix, "bin", "cmake")
+        cmake_exe = venv_cmake if os.path.exists(venv_cmake) else "cmake"
 
         cmake_args = [
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=" + extdir,
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
             "-DCMAKE_COLOR_DIAGNOSTICS=1",
-            "-DUIPC_BUILD_PYBIND=" + self.DUIPC_BUILD_PYBIND,  # per default = 1, i.e. true
+            "-DUIPC_BUILD_PYBIND=" + self.DUIPC_BUILD_PYBIND,
             "-DUIPC_DEV_MODE=1",
             "-DUIPC_BUILD_GUI=0",
         ]
-        if self.DCMAKE_CUDA_ARCHITECTURES is not None:  # None means "use native cuda architecture"
+
+        # Env-var overrides for toolchain and compilers
+        for env_key, cmake_key in [
+            ("CMAKE_TOOLCHAIN_FILE", "-DCMAKE_TOOLCHAIN_FILE"),
+            ("CMAKE_C_COMPILER", "-DCMAKE_C_COMPILER"),
+            ("CMAKE_CXX_COMPILER", "-DCMAKE_CXX_COMPILER"),
+            ("CMAKE_CUDA_HOST_COMPILER", "-DCMAKE_CUDA_HOST_COMPILER"),
+        ]:
+            val = os.environ.get(env_key)
+            if val:
+                cmake_args += [f"{cmake_key}={val}"]
+
+        # Python executable for pybind11
+        cmake_args += [f"-DPython_EXECUTABLE={sys.executable}",
+                       f"-DPython3_EXECUTABLE={sys.executable}"]
+
+        if self.DCMAKE_CUDA_ARCHITECTURES is not None:
             cmake_args += ["-DCMAKE_CUDA_ARCHITECTURES=" + self.DCMAKE_CUDA_ARCHITECTURES]
 
         cfg = "Debug" if self.debug else "Release"
-        build_args = []  # ['--config', cfg]
+        build_args = []
 
         if platform.system() == "Windows":
             cmake_args += [f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}"]
@@ -90,15 +109,15 @@ class CMakeBuild(build_ext):
             build_args += ["--", "/m"]
         else:
             cmake_args += ["-DCMAKE_BUILD_TYPE=" + cfg]
-            build_args += ["-j4"]  # use -j8 for faster building
+            build_args += [f"-j{os.environ.get('UIPC_BUILD_JOBS', '4')}"]
 
         env = os.environ.copy()
         env["CXXFLAGS"] = '{} -DVERSION_INFO=\\"{}\\"'.format(env.get("CXXFLAGS", ""), self.distribution.get_version())
-        self.build_dir = "build/"  # where the compiled files are placed
+        self.build_dir = "build/"
         if not os.path.exists(self.build_dir):
             os.makedirs(self.build_dir)
-        subprocess.check_call(["cmake", ext.sourcedir] + cmake_args, cwd=self.build_dir, env=env)
-        subprocess.check_call(["cmake", "--build", "."] + build_args, cwd=self.build_dir)
+        subprocess.check_call([cmake_exe, ext.sourcedir] + cmake_args, cwd=self.build_dir, env=env)
+        subprocess.check_call([cmake_exe, "--build", "."] + build_args, cwd=self.build_dir)
 
 
 # Installation operation
