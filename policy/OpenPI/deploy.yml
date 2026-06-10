@@ -1,15 +1,17 @@
 policy_name: OpenPI
 seed: 0
 
-# Path to trained openpi checkpoint (directory containing model.safetensors + assets/)
-checkpoint_dir: /data/temp_storage/exps/checkpoints/pi05_univtac_lift_can/seq_80ep/12000
+# Path to trained openpi checkpoint:
+#   - HuggingFace repo ID (auto-downloaded): GT-111/pi05_univtac_lift_can
+#   - Local path: /path/to/checkpoint
+checkpoint_dir: GT-111/pi05_univtac_lift_can
 
-# Tactile fusion mode — fallback when checkpoint has no metadata.pt
+# Tactile fusion mode — fallback when checkpoint has no metadata.pt.
 # Auto-detected from metadata.pt for fine-tuned checkpoints.
 #   left_only (default):  head + wrist + left tactile
 #   right_only:           head + wrist + right tactile
 #   side_by_side:         head + wrist + left||right tactile combined
-#   drop_wrist:           head + left tactile + right tactile
+#   drop_wrist:           head + left tactile + right tactile (wrist dropped)
 #   none:                 head + wrist only (no tactile)
 tactile_mode: left_only
 

@@ -56,9 +56,15 @@ class Policy(BasePolicy):
         self.camera_type = task_settings[self.task_name].get("camera_type", "head")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # ---- checkpoint ----
-        ckpt_dir = Path(args.get("checkpoint_dir",
-            "/data/temp_storage/exps/openpi/openpi-assets/checkpoints/pi05_base_pytorch"))
+        # ---- checkpoint (local path or HuggingFace repo) ----
+        ckpt_src = args.get("checkpoint_dir",
+            "/data/temp_storage/exps/openpi/openpi-assets/checkpoints/pi05_base_pytorch")
+        if "/" in ckpt_src and not ckpt_src.startswith(("/", ".", "~")):
+            # HuggingFace repo ID — download to cache
+            from huggingface_hub import snapshot_download
+            ckpt_dir = Path(snapshot_download(ckpt_src, repo_type="model"))
+        else:
+            ckpt_dir = Path(ckpt_src)
 
         # ---- auto-detect model config ----
         meta_path = ckpt_dir / "metadata.pt"
