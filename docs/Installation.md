@@ -2,162 +2,158 @@
 
 ## Requirements
 
-- System: Linux with NVIDIA GPU
-- Python 3.10
-- NVIDIA Isaac Sim 4.5 + Isaac Lab 2.1.1
-- [NVIDIA cuRobo](https://curobo.org)
-- [TacEx](https://github.com/DH-Ng/TacEx): **Must be built from the local `third_party/TacEx` source** (contains project-specific modifications)
+- **OS**: Ubuntu 22.04 (or compatible Linux)
+- **GPU**: NVIDIA RTX 4090 D (24 GB) — sm_89, CUDA 12.8
+- **CUDA Toolkit 12.8**: `/usr/local/cuda-12.8`
+- **Python**: 3.10, managed via `uv`
 
-## Installation & Setup
-
-### Step 1: Clone the Repository
+## Quick Start
 
 ```bash
-git clone https://github.com/byml-c/UniVTAC.git
+# 1. System deps
+sudo apt install -y cmake build-essential gcc-11 g++-11 pkg-config git-lfs
+
+# 2. Clone with submodules
+git clone --recurse-submodules https://github.com/byml-c/UniVTAC.git
+cd UniVTAC
+
+# 3. Create venv & sync all Python deps
+uv venv --python 3.10 --seed
+source .venv/bin/activate
+uv sync
+
+# 4. Install Isaac Lab
+git clone https://github.com/isaac-sim/IsaacLab ../IsaacLab
+cd ../IsaacLab && git checkout v2.1.1 && ./isaaclab.sh -i
+cd -
+
+# 5. Install TacEx + build tacex_uipc
+cd third_party/TacEx && bash tacex.sh -i && cd -
+bash scripts/build_tacex_uipc.sh
+
+# 6. Verify
+python -c "import torch; assert torch.cuda.is_available(); print('OK')"
+```
+
+## Step-by-Step
+
+### 1. System Prerequisites
+
+```bash
+sudo apt install -y cmake build-essential gcc-11 g++-11 pkg-config git-lfs
+```
+
+Install CUDA Toolkit 12.8 from [NVIDIA's archive](https://developer.nvidia.com/cuda-12-8-0-download-archive).
+Ensure `/usr/local/cuda-12.8/bin/nvcc` exists.
+
+### 2. Clone
+
+```bash
+git clone --recurse-submodules https://github.com/byml-c/UniVTAC.git
 cd UniVTAC
 ```
 
-### Prerequisites
+Submodules are pinned to specific commits:
+| Submodule | Path | Version |
+|-----------|------|---------|
+| cuRobo | `third_party/curobo` | v0.7.4 |
+| TacEx | `third_party/TacEx` | (bundled) |
 
-Install system-level build dependencies (Ubuntu/Debian):
+### 3. Python Environment
 
-```bash
-sudo apt install -y cmake build-essential gcc-11 g++-11 pkg-config
-```
-
-For CUDA Toolkit 12.4, install from [NVIDIA's download archive](https://developer.nvidia.com/cuda-12-4-0-download-archive), or use your system CUDA if already installed (check with `nvcc --version`).
-
-> **Note:** `uv` manages Python packages, but system-level tools (gcc, cmake, CUDA) must be installed separately. The original conda environment file at `third_party/TacEx/source/tacex_uipc/libuipc/conda/env.yaml` lists the required versions for reference.
-
-### Step 2: Create a Virtual Environment with uv
+All Python dependencies are declared in `pyproject.toml`, including cuRobo as a
+local editable package. TacEx is installed separately via scripts (see step 5).
 
 ```bash
 uv venv --python 3.10 --seed
 source .venv/bin/activate
+uv sync
 ```
 
-### Step 3: Install TacEx (Modified Source)
+> The first run may take a while to resolve and download all packages.
 
-> **Important:** Do **not** install TacEx from the public repository. UniVTAC requires a modified version of TacEx that is bundled in `third_party/TacEx`. Some internal APIs have been adapted for UniVTAC's tactile sensor pipeline.
-
-``` bash
-cd third_party/TacEx
-```
-
-If you have a working Isaac Lab environment, you can directly install TacEx. Otherwise, **you need to install Isaac Sim 4.5 and Isaac Lab 2.1.1**. Below is a quick summary, but here is the [full installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-
-<details>
-<summary>Quick summary for Installing Isaac Sim and Isaac Lab for Ubuntu 22.04</summary>
-
-> [!note]
-> To install Isaac Sim for Ubuntu 20.04 follow the [binary installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/binaries_installation.html).
-
-#### Isaac Sim - Linux pip installation
+To verify:
 
 ```bash
-# install cuda-enabled pytorch
-uv pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu118
-# install isaac sim packages
-uv pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+python -c "import isaacsim; print('isaacsim OK')"
+python -c "import curobo; print('curobo OK')"
 ```
 
-> verify that the Isaac Sim installation works by calling `isaacsim` in the terminal
-
-#### Isaac Lab
+### 4. Isaac Lab
 
 ```bash
-# install dependencies via apt (Ubuntu)
-sudo apt install cmake build-essential
-git clone https://github.com/isaac-sim/IsaacLab
-cd IsaacLab
-# use Isaac Lab version 2.1.1
-git checkout v2.1.1
-# activate the Isaac Sim python env
-source .venv/bin/activate
-# install isaaclab extensions (with --editable flag)
-./isaaclab.sh --install # or "./isaaclab.sh -i"
+git clone https://github.com/isaac-sim/IsaacLab ../IsaacLab
+cd ../IsaacLab && git checkout v2.1.1
+source ../UniVTAC/.venv/bin/activate
+./isaaclab.sh -i
 ```
 
-To verify the Isaac Lab Installation:
+Then install Isaac Lab's Python packages as editable:
 
 ```bash
-source .venv/bin/activate
-python scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Ant-v0 --headless
+uv pip install -e source/isaaclab -e source/isaaclab_assets -e source/isaaclab_tasks -e source/isaaclab_rl --no-build-isolation
 ```
 
-</details>
+### 5. TacEx & tacex_uipc
 
-#### Installing TacEx [Core]
+TacEx provides the tactile sensor simulation pipeline. It is bundled in `third_party/TacEx`.
 
-**1.** Activate the Isaac Env
-```bash
-source .venv/bin/activate
-```
-
-**2.** Install the core packages of TacEx
-```bash
-# Script will pip install core TacEx packages with --editable flag)
-./tacex.sh -i
-```
-
-> You can install the extensions one by one via e.g. `uv pip install -e source/tacex_uipc`
->
-> **Note:** `tacex`, `tacex_assets`, and `tacex_tasks` import Isaac Sim modules (`omni`, `isaaclab_tasks`) at runtime. Make sure Isaac Sim is installed before verifying the import.
-
-**3.** Verify that TacEx works by running an example:
+#### 5a. Install TacEx Core
 
 ```bash
-python ./scripts/demos/tactile_sim_approaches/check_taxim_sim.py --debug_vis
+cd third_party/TacEx && bash tacex.sh -i && cd -
 ```
 
-And here is an RL example:
-```bash
-python ./scripts/reinforcement_learning/skrl/train.py --task TacEx-Ball-Rolling-Tactile-RGB-v0 --num_envs 512 --enable_cameras
-```
-> You can view the sensor output in the IsaacLab Tab: `Scene Debug Visualization > Observations > sensor_output`
+#### 5b. Build tacex_uipc (C++/CUDA extension)
 
-#### Installing TacEx [UIPC]
-The `tacex_uipc` package is responsible for the [UIPC](https://spirimirror.github.io/libuipc-doc/) simulation in TacEx.
+`tacex_uipc` wraps the [libuipc](https://spirimirror.github.io/libuipc-doc/) FEM
+simulation library. It requires vcpkg for C++ dependency management.
 
-> **Note:** The build process needs `cmake>=3.26`, `gcc-11`/`g++-11`, `cuda-toolkit` (12.x), and `vcpkg`. Install system packages first (see [Prerequisites](#prerequisites) above).
-
-**1.** Install vcpkg and set up the toolchain:
+#### 5a. Install vcpkg
 
 ```bash
 mkdir -p ~/Toolchain && cd ~/Toolchain
 git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-# Download prebuilt vcpkg binary (avoids needing zip/unzip for bootstrap)
-curl -sL "$(curl -sL https://api.github.com/repos/microsoft/vcpkg-tool/releases/latest | python3 -c "import json,sys; r=json.load(sys.stdin); [print(a['browser_download_url']) for a in r['assets'] if 'vcpkg-glibc' in a['name'] and '.sig' not in a['name']]")" -o vcpkg
-chmod +x vcpkg
+cd vcpkg && ./bootstrap-vcpkg.sh
 ```
 
-**2.** Set environment variables (add to `~/.bashrc` for persistence):
+#### 5b. Build
+
+The build script handles tinyxml download and all environment setup automatically:
 
 ```bash
-export CMAKE_TOOLCHAIN_FILE="$HOME/Toolchain/vcpkg/scripts/buildsystems/vcpkg.cmake"
-export CUDA_HOME=/usr/local/cuda  # or /usr/local/cuda-12.8
+bash scripts/build_tacex_uipc.sh
 ```
 
-**3.** Build and install `tacex_uipc`:
+> Override defaults via environment if needed:
+> ```bash
+> CMAKE_CUDA_ARCHITECTURES=90 bash scripts/build_tacex_uipc.sh
+> CUDA_HOME=/usr/local/cuda-12.4 bash scripts/build_tacex_uipc.sh
+> ```
+
+### 6. Verify
 
 ```bash
 source .venv/bin/activate
-# Setup picks cmake from venv, uses env vars for toolchain + compilers
-export CC=/usr/bin/gcc-11
-export CXX=/usr/bin/g++-11
-export CMAKE_CUDA_HOST_COMPILER=/usr/bin/g++-11
-uv pip install -e source/tacex_uipc -v
+export OMNI_KIT_ACCEPT_EULA=YES
+
+# Quick import check
+python -c "import tacex_uipc; import curobo; print('OK')"
+
+# Run a single eval episode (0% success with NullPolicy)
+python scripts/eval_policy.py grasp_classify default NullPolicy/deploy \
+    --total_num 1 --print_only
 ```
 
-> If using a different CUDA version, set `CUDA_HOME` accordingly. You may also need `CMAKE_CUDA_ARCHITECTURES` for non-H100 GPUs.
+Expected output: the simulation starts, the robot arm executes zero actions, and
+the episode terminates with 0/1 success — confirming the full pipeline works.
 
-**3.** Verify that the `tacex_uipc` works by running an example:
+---
 
-```bash
-python ./scripts/benchmarking/tactile_sim_performance/run_ball_rolling_experiment.py --num_envs 1 --debug_vis --env uipc
-```
+## Reproducibility
 
-### Step 4: Install cuRobo
-
-cuRobo is used for GPU-accelerated collision-aware motion planning. Follow the official [cuRobo Installation Guide](https://curobo.org/get_started/1_install_instructions.html).
+- `pyproject.toml` pins all Python dependency versions.
+- `uv.lock` (generated by `uv sync`) records exact resolution.
+- `third_party/curobo` submodule pinned to v0.7.4.
+- `third_party/TacEx` is a bundled copy — do not replace with upstream.

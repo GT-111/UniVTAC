@@ -90,4 +90,41 @@ dependencies = [
     "wandb==0.12.21",
     "wildmeshing==0.4.1",
     "yourdfpy==0.0.58",
+    "curobo",
+    "tacex",
+    "tacex-assets",
+    "tacex-tasks",
 ]
+
+[project.optional-dependencies]
+uipc = ["tacex-uipc"]
+
+# ---------------------------------------------------------------------------
+# package indexes
+# ---------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+# ---------------------------------------------------------------------------
+# local / editable sources
+# ---------------------------------------------------------------------------
+[tool.uv.sources]
+curobo = { path = "third_party/curobo", editable = true }
+tacex = { path = "third_party/TacEx/source/tacex", editable = true }
+tacex-assets = { path = "third_party/TacEx/source/tacex_assets", editable = true }
+tacex-tasks = { path = "third_party/TacEx/source/tacex_tasks", editable = true }
+tacex-uipc = { path = "third_party/TacEx/source/tacex_uipc", editable = true }
+
+# ---------------------------------------------------------------------------
+# build system
+# ---------------------------------------------------------------------------
+[build-system]
+requires = ["setuptools>=61", "pip"]
+build-backend = "setuptools.build_meta"

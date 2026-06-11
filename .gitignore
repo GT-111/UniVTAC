@@ -32,7 +32,6 @@ __tracked_surface.stl
 /outputs/
 *.log
 
-/third_party/curobo
 /third_party/isaacsim
 /third_party/isaacsim_isaacsim_link
 /third_party/libuipc-samples
@@ -60,3 +59,4 @@ textures.zip
 **/act-ckpt/*
 /*.png
 **/tmp.png
+third_party/TacEx/CMake*
