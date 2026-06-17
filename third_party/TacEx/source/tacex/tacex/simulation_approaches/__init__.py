@@ -1,4 +1,6 @@
-from .gelsight_simulator import GelSightSimulator
-from .gelsight_simulator_cfg import GelSightSimulatorCfg
+"""Simulation approaches for VBTS."""
 
-__all__ = ["GelSightSimulator", "GelSightSimulatorCfg"]
+from .vbts_simulator import VBTSSimulator
+from .vbts_simulator_cfg import VBTSSimulatorCfg
+
+__all__ = ["VBTSSimulator", "VBTSSimulatorCfg"]

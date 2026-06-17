@@ -3,15 +3,15 @@ from typing import Literal
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.utils import configclass
 
-from .gelsight_sensor import GelSightSensor
-from .simulation_approaches.gelsight_simulator_cfg import GelSightSimulatorCfg
+from .vbts_sensor import VBTSSensor
+from .simulation_approaches.vbts_simulator_cfg import VBTSSimulatorCfg
 
 """Configuration for a Gelsight tactile sensor."""
 
 
 @configclass
-class GelSightSensorCfg(SensorBaseCfg):
-    class_type: type = GelSightSensor
+class VBTSSensorCfg(SensorBaseCfg):
+    class_type: type = VBTSSensor
 
     @configclass
     class Dimensions:
@@ -49,10 +49,10 @@ class GelSightSensorCfg(SensorBaseCfg):
     - camera_rgb: rgb image from the sensor camera
     """
 
-    optical_sim_cfg: GelSightSimulatorCfg = None  # freely choose what simulation class, but can also be left None
+    optical_sim_cfg: VBTSSimulatorCfg = None  # freely choose what simulation class, but can also be left None
     """Cfg class of the optical simulator you want to use."""
 
-    marker_motion_sim_cfg: GelSightSimulatorCfg = None
+    marker_motion_sim_cfg: VBTSSimulatorCfg = None
     """Cfg class of the marker motion simulator you want to use."""
 
     compute_indentation_depth_class: Literal["optical_sim", "marker_motion_sim"] = "optical_sim"

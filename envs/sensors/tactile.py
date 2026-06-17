@@ -1,19 +1,13 @@
 import torch
-from envs.utils import data
 import numpy as np
-from tacex import GelSightSensor, GelSightSensorCfg
+from tacex import VBTSSensor
 from tacex_assets import TACEX_ASSETS_DATA_DIR
 from tacex_assets.sensors.gf225.gf225_cfg import GF225Cfg
 from tacex.simulation_approaches.fem_based import ManiSkillSimulatorCfg
-from tacex.simulation_approaches.fots import FOTSMarkerSimulatorCfg
 
 from isaaclab.utils import configclass
 import isaaclab.utils.math as math_utils
-from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.assets import Articulation, RigidObject
-from isaaclab.sensors import FrameTransformer, FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
 
 from tacex_uipc import (
     UipcRLEnv,
@@ -35,6 +29,7 @@ if TYPE_CHECKING:
 @configclass
 class TactileCfg:
     name: str = 'tactile_sensor'
+    sensor_type: str = 'unknown'  # 'gsmini', 'gf225', 'zxhand'
     sensor_cfg = None
     gelpad_cfg: UipcObjectCfg = None
     gelpad_attachment_cfg: UipcIsaacAttachmentsCfg = None
@@ -47,6 +42,7 @@ def create_gelsight_mini_cfg(
     resolution = (320, 240),
     update_period = 1/120,
     data_type:list[str] = ["camera_depth", "tactile_rgb"],
+    sensor_type_label: str = "gsmini",
 ):
     from tacex_assets.sensors.gelsight_mini.gsmini_cfg import GelSightMiniCfg
     sensor_cfg = GelSightMiniCfg(
@@ -82,6 +78,7 @@ def create_gelsight_mini_cfg(
 
     cfg = TactileCfg(
         name=name,
+        sensor_type=sensor_type_label,
         sensor_cfg=sensor_cfg,
         gelpad_cfg=UipcObjectCfg(
             prim_path=gelpad_prim_path,
@@ -144,61 +141,7 @@ def create_gf225_cfg(
     
     cfg = TactileCfg(
         name=name,
-        sensor_cfg=sensor_cfg,
-        gelpad_cfg=UipcObjectCfg(
-            prim_path=gelpad_prim_path,
-            constitution_cfg=UipcObjectCfg.StableNeoHookeanCfg(youngs_modulus=0.1),
-            mass_density=1e4
-        ),
-        gelpad_attachment_cfg=UipcIsaacAttachmentsCfg(
-            constraint_strength_ratio=1e4,
-            body_name=gelpad_attachment_body_name,
-            isaac_rigid_prim_path=gelpad_attachment_prim_path,
-            debug_vis=False,
-        ),
-    )
-    return cfg
-
-def create_xensews_cfg(
-    prim_path: str,
-    gelpad_prim_path: str,
-    gelpad_attachment_body_name: str,
-    gelpad_attachment_prim_path: str = None,
-    name: str = "tactile_sensor",
-    resolution = (320, 240),
-    update_period = 1/120,
-    data_type:list[str] = ["camera_depth", "tactile_rgb"],
-) -> TactileCfg:
-    from tacex_assets.sensors.xensews.xensews_cfg import XenseWSCfg
-
-    sensor_cfg = XenseWSCfg(
-        prim_path=prim_path,
-        sensor_camera_cfg=XenseWSCfg.SensorCameraCfg(
-            prim_path_appendix="/Camera",
-            update_period=update_period,
-            resolution=resolution,
-            data_types=["depth", "rgb"],
-            clipping_range=(0.01, 0.03),  # (0.024, 0.034),
-        ),
-        device="cuda",
-        debug_vis=False,  # for rendering sensor output in the gui
-        update_period=update_period,
-        marker_motion_sim_cfg=ManiSkillSimulatorCfg(
-            tactile_img_res=resolution,
-            sub_marker_num=0,
-            sensor_type='xensews',
-        ),
-        data_types=data_type
-    )
-    sensor_cfg.marker_motion_sim_cfg.marker_params.num_markers = 1200
-    sensor_cfg.optical_sim_cfg = sensor_cfg.optical_sim_cfg.replace(
-        with_shadow=False,
-        tactile_img_res=resolution,
-        device="cuda",
-    )
-
-    cfg = TactileCfg(
-        name=name,
+        sensor_type="gf225",
         sensor_cfg=sensor_cfg,
         gelpad_cfg=UipcObjectCfg(
             prim_path=gelpad_prim_path,
@@ -220,19 +163,11 @@ def create_tactile_cfg(
     gelpad_attachment_body_name: str,
     gelpad_attachment_prim_path: str = None,
     name: str = "tactile_sensor",
-    sensor_type:Literal['gsmini', 'xensews', 'gf225'] = "gsmini",
+    sensor_type:Literal['gsmini', 'gf225'] = "gsmini",
     data_type:list[str] = ["camera_depth", "tactile_rgb"],
 ) -> TactileCfg:
     if sensor_type == "gsmini":
         return create_gelsight_mini_cfg(
-            prim_path=prim_path,
-            gelpad_prim_path=gelpad_prim_path,
-            gelpad_attachment_body_name=gelpad_attachment_body_name,
-            name=name,
-            data_type=data_type,
-        )
-    elif sensor_type == "xensews":
-        return create_xensews_cfg(
             prim_path=prim_path,
             gelpad_prim_path=gelpad_prim_path,
             gelpad_attachment_body_name=gelpad_attachment_body_name,
@@ -253,6 +188,8 @@ def create_tactile_cfg(
 
 
 class VisualTactileSensor:
+    """TacEx VBTS-based tactile sensor (GS Mini, GF225)."""
+
     def __init__(self, name:str, cfg:TactileCfg, robot, scene: 'UipcInteractiveScene', uipc_sim:'UipcSim'):
         self.cfg = cfg
         self.name = name
@@ -264,8 +201,7 @@ class VisualTactileSensor:
         self.attachment = UipcIsaacAttachments(
             self.cfg.gelpad_attachment_cfg, self.gelpad, self.robot
         )
-        self.sensor = GelSightSensor(self.cfg.sensor_cfg, self.gelpad)
-        # self.scene.sensors[f'tactile_{self.cfg.name}'] = self.sensor
+        self.sensor = VBTSSensor(self.cfg.sensor_cfg, self.gelpad)
     
     def setup(self):
         self.device = self.uipc_sim.cfg.device
@@ -278,17 +214,13 @@ class VisualTactileSensor:
         self.attach_to_init = torch.tensor(self.attach_to_init, dtype=torch.float64, device=self.device)
 
         self.sensor.marker_motion_simulator.marker_motion_sim.init_vertices()
-
+    
     def get_attach_pose(self):
         if type(self.attachment.isaaclab_rigid_object) is Articulation:
-            # this only works when rigid body is an articulation
-            # self.attachment.isaaclab_rigid_object._physics_sim_view.update_articulations_kinematic()
-            # read data from simulation
             poses = self.attachment.isaaclab_rigid_object._root_physx_view.get_link_transforms().clone()
             poses[..., 3:7] = math_utils.convert_quat(poses[..., 3:7], to="wxyz")
             pose = poses[:, self.attachment.rigid_body_id, 0:7].clone()
         elif type(self.attachment.isaaclab_rigid_object) is RigidObject:
-            # only works with rigid body
             pose = self.attachment.isaaclab_rigid_object._root_physx_view.root_state_w.view(-1, 1, 13)
             pose = pose[:, self.attachment.rigid_body_id, 0:7].clone()
         else:
@@ -333,10 +265,10 @@ class VisualTactileSensor:
     
     def _reset_idx(self):
         self.init_pose_mat = self.get_attach_pose().to_transformation_matrix()
-        # self.gelpad.write_vertex_positions_to_sim(vertex_positions=self.gelpad.init_vertex_pos)
-    
+
     def get_min_depth(self):
         return torch.min(self.sensor.data.output['height_map']).item()
+
 
 class TactileManager:
     def __init__(self, cfg_list: list[TactileCfg], task:'BaseTask'):
@@ -345,20 +277,46 @@ class TactileManager:
         self.uipc_sim = task.uipc_sim
         self.robot = task._robot_manager.robot
         
-        self.tactiles = {
-            cfg.name: VisualTactileSensor(
-                cfg.name, cfg, self.robot, self.scene, self.uipc_sim
-            ) for cfg in cfg_list
-        }
+        self.tactiles = {}
+        for cfg in cfg_list:
+            if cfg.sensor_type in ('gsmini', 'gf225'):
+                self.tactiles[cfg.name] = VisualTactileSensor(
+                    cfg.name, cfg, self.robot, self.scene, self.uipc_sim
+                )
+            elif cfg.sensor_type == 'zxhand':
+                from .zx_official import OfficialZXTactileSensor
+
+                sensor_cfg = cfg.sensor_cfg
+                finger_prim_path = sensor_cfg["finger_prim_path"].replace("env_.*", "env_0")
+                self.tactiles[cfg.name] = OfficialZXTactileSensor(
+                    name=cfg.name,
+                    finger_prim_path=finger_prim_path,
+                    side=sensor_cfg["side"],
+                    device=str(task.device),
+                )
+            else:
+                raise ValueError(
+                    f"Unknown sensor_type '{cfg.sensor_type}' in TactileCfg '{cfg.name}'"
+                )
 
     def update(self, dt, force_recompute=False):
+        obj_pose_7d = None
+        if hasattr(self.task, "_actor_manager") and self.task._actor_manager.actors:
+            # Use the last actor as the manipulated object. For insertion tasks
+            # this skips the fixed slot/base and selects the plug/prism.
+            actor = next(reversed(self.task._actor_manager.actors.values()))
+            obj_pose_7d = actor.get_pose().tolist()
         for tact in self.tactiles.values():
+            if obj_pose_7d is not None and hasattr(tact, "obj_pose_7d"):
+                tact.obj_pose_7d = np.asarray(obj_pose_7d)
             tact.update(dt=dt, force_recompute=force_recompute)
  
     def set_debug_vis(self, debug_vis):
         if not debug_vis: return
         for tact in self.tactiles.values():
-            tact.set_debug_vis()
+            set_debug_vis = getattr(tact, "set_debug_vis", None)
+            if callable(set_debug_vis):
+                set_debug_vis()
 
     def get_observations(self, data_types: list[str] = None):
         obs = {}
@@ -380,3 +338,9 @@ class TactileManager:
     def setup(self):
         for tact in self.tactiles.values():
             tact.setup()
+
+    def close(self):
+        for tact in self.tactiles.values():
+            close_fn = getattr(tact, "close", None)
+            if callable(close_fn):
+                close_fn()

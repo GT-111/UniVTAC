@@ -29,7 +29,11 @@ from tacex_assets import TACEX_ASSETS_DATA_DIR
 # -> currently, we need to look into the asset to figure out the prim name (in this case its /gelsight_mini_case)
 FRANKA_PANDA_ARM_XENSEWS_GRIPPER_UIPC_HIGH_RES_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{TACEX_ASSETS_DATA_DIR}/Robots/Franka/XenseWS/uipc_xense.usd",
+        # uipc_xense_rigid.usd overlays uipc_xense.usd and adds RigidBodyAPI +
+        # convexHull collision to the XenseWS_left/right finger bodies so Isaac
+        # parses them as real articulation links. This keeps the official XenseWS
+        # case shell look with a real grasp + official Xense tactile.
+        usd_path=f"{TACEX_ASSETS_DATA_DIR}/Robots/Franka/XenseWS/uipc_xense_rigid.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

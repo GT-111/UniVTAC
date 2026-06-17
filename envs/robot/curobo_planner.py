@@ -109,7 +109,7 @@ class CuroboPlanner:
         real_robot_pose,
         pre_dis=None,
         constraint_pose=None,
-        time_dilation_factor=None
+        time_dilation_factor=None,
     ):
         self.update_world()
         target_pose = calculate_target_pose(

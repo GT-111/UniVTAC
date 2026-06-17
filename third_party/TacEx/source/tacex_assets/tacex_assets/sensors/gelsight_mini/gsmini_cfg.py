@@ -2,7 +2,7 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
-from tacex import GelSightSensor, GelSightSensorCfg
+from tacex import VBTSSensor, VBTSSensorCfg
 from tacex.simulation_approaches.fots import FOTSMarkerSimulatorCfg
 from tacex.simulation_approaches.gpu_taxim import TaximSimulatorCfg
 
@@ -12,18 +12,18 @@ from tacex_assets import TACEX_ASSETS_DATA_DIR
 
 
 @configclass
-class GelSightMiniCfg(GelSightSensorCfg):
-    class_type: type = GelSightSensor
+class GelSightMiniCfg(VBTSSensorCfg):
+    class_type: type = VBTSSensor
 
-    case_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    case_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=32 / 1000, length=28 / 1000, height=24 / 1000
     )
 
-    gelpad_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    gelpad_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=20.75 / 1000, length=25.25 / 1000, height=4.5 / 1000
     )
 
-    sensor_camera_cfg: GelSightSensorCfg.SensorCameraCfg = GelSightSensorCfg.SensorCameraCfg(
+    sensor_camera_cfg: VBTSSensorCfg.SensorCameraCfg = VBTSSensorCfg.SensorCameraCfg(
         prim_path_appendix="/Camera",
         update_period=0,
         resolution=(320, 240),

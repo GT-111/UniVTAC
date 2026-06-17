@@ -1,4 +1,4 @@
-from tacex import GelSightSensorCfg
+from tacex import VBTSSensorCfg
 from tacex.simulation_approaches.gpu_taxim import TaximSimulatorCfg
 
 from tacex_assets import TACEX_ASSETS_DATA_DIR
@@ -9,7 +9,7 @@ from .gsmini_cfg import GelSightMiniCfg
 
 GELSIGHT_MINI_TAXIM_CFG = GelSightMiniCfg()
 GELSIGHT_MINI_TAXIM_CFG = GELSIGHT_MINI_TAXIM_CFG.replace(
-    sensor_camera_cfg=GelSightSensorCfg.SensorCameraCfg(
+    sensor_camera_cfg=VBTSSensorCfg.SensorCameraCfg(
         prim_path_appendix="/Camera",
         update_period=0,
         resolution=(320, 240),
@@ -32,18 +32,18 @@ GELSIGHT_MINI_TAXIM_CFG = GELSIGHT_MINI_TAXIM_CFG.replace(
 )
 
 # @configclass
-# class GelSightMiniTaximCfg(GelSightSensorCfg):
-#     class_type: type = GelSightSensor
+# class GelSightMiniTaximCfg(VBTSSensorCfg):
+#     class_type: type = VBTSSensor
 
-#     case_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+#     case_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
 #         width=32 / 1000, length=28 / 1000, height=24 / 1000
 #     )
 
-#     gelpad_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+#     gelpad_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
 #         width=20.75 / 1000, length=25.25 / 1000, height=4.5 / 1000
 #     )
 
-#     sensor_camera_cfg: GelSightSensorCfg.SensorCameraCfg = GelSightSensorCfg.SensorCameraCfg(
+#     sensor_camera_cfg: VBTSSensorCfg.SensorCameraCfg = VBTSSensorCfg.SensorCameraCfg(
 #         prim_path_appendix="/Camera",
 #         update_period=0,
 #         resolution=(320, 240),

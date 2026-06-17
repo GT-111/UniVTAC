@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from ..gelsight_simulator import GelSightSimulator
+from ..vbts_simulator import VBTSSimulator
 
 if TYPE_CHECKING:
     from .mlp_fots_sim_cfg import MLPFOTSSimulatorCfg
-    from ...gelsight_sensor import GelSightSensor
+    from ...vbts_sensor import VBTSSensor
 
 
 class MLP(nn.Module):
@@ -52,7 +52,7 @@ class MLP(nn.Module):
         return x
 
 
-class MLPFOTSSimulator(GelSightSimulator):
+class MLPFOTSSimulator(VBTSSimulator):
     """MLP-based FOTS optical simulator for GelSight sensors.
     
     This simulator converts depth maps to tactile RGB images using:
@@ -64,7 +64,7 @@ class MLPFOTSSimulator(GelSightSimulator):
 
     cfg: MLPFOTSSimulatorCfg
 
-    def __init__(self, sensor: GelSightSensor, cfg: MLPFOTSSimulatorCfg):
+    def __init__(self, sensor: VBTSSensor, cfg: MLPFOTSSimulatorCfg):
         self.sensor = sensor
         super().__init__(sensor=sensor, cfg=cfg)
 

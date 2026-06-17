@@ -1,8 +1,6 @@
-"""Minimal pi05 config — extracted from openpi, no JAX dependency."""
+"""Pi05 model config — inference only, no JAX dependency."""
 
 import dataclasses
-import enum
-from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -45,20 +43,6 @@ def get_gemma_config(variant: str) -> GemmaConfig:
 
 
 # ---------------------------------------------------------------------------
-# Model type (from openpi/models/model.py)
-# ---------------------------------------------------------------------------
-
-class ModelType(enum.Enum):
-    PI0 = "pi0"
-    PI0_FAST = "pi0_fast"
-    PI05 = "pi05"
-
-
-IMAGE_KEYS = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
-IMAGE_RESOLUTION = (224, 224)
-
-
-# ---------------------------------------------------------------------------
 # Pi0Config (from openpi/models/pi0_config.py — inference only)
 # ---------------------------------------------------------------------------
 
@@ -72,11 +56,3 @@ class Pi0Config:
     action_expert_variant: str = "gemma_300m"
     dtype: str = "bfloat16"
     pytorch_compile_mode: str | None = None
-
-    @property
-    def model_type(self) -> ModelType:
-        return ModelType.PI05 if self.pi05 else ModelType.PI0
-
-    @property
-    def discrete_state_input(self) -> bool:
-        return False  # pi05 default for LIBERO/UniVTAC

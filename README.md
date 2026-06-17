@@ -57,7 +57,7 @@ To deploy your own policy, refer to the [Deploy Your Policy](./docs/Deploy.md).
 
 ## TODO
 
-- Data collection and evaluation are now only supported on the GelSight Mini sensor. We will add support for ViTai GF225 and XenseWS in the near future.
+- ViTai GF225 and XenseWS code-level support (configs, dispatch, observation pipeline) is now complete. These sensors require separate 3D CAD model assets (`assets/GF225.usd`, `assets/XSense_2.usd`) — see `docs/Installation.md` Section 6.
 
 ## 👍 Citations
 If you find our work useful, please consider citing:

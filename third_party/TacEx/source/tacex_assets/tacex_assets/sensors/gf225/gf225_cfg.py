@@ -2,7 +2,7 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
-from tacex import GelSightSensor, GelSightSensorCfg
+from tacex import VBTSSensor, VBTSSensorCfg
 from tacex.simulation_approaches.fots import FOTSMarkerSimulatorCfg
 from tacex.simulation_approaches.gpu_taxim import TaximSimulatorCfg
 
@@ -12,18 +12,18 @@ from tacex_assets import TACEX_ASSETS_DATA_DIR
 
 
 @configclass
-class GF225Cfg(GelSightSensorCfg):
-    class_type: type = GelSightSensor
+class GF225Cfg(VBTSSensorCfg):
+    class_type: type = VBTSSensor
 
-    case_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    case_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=32 / 1000, length=28 / 1000, height=24 / 1000
     )
 
-    gelpad_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    gelpad_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=29 / 1000, length=27 / 1000, height=2 / 1000
     )
 
-    sensor_camera_cfg: GelSightSensorCfg.SensorCameraCfg = GelSightSensorCfg.SensorCameraCfg(
+    sensor_camera_cfg: VBTSSensorCfg.SensorCameraCfg = VBTSSensorCfg.SensorCameraCfg(
         prim_path_appendix="/Camera",
         update_period=0,
         resolution=(480, 480),
@@ -47,7 +47,7 @@ class GF225Cfg(GelSightSensorCfg):
     """
 
     optical_sim_cfg = TaximSimulatorCfg(
-        calib_folder_path=f"{TACEX_ASSETS_DATA_DIR}/Sensors/GelSight_Mini/calibs/640x480",
+        calib_folder_path=f"{TACEX_ASSETS_DATA_DIR}/Sensors/GF225/calibs/480x480",
         gelpad_height=gelpad_dimensions.height,
         gelpad_to_camera_min_distance=0.024,
         with_shadow=False,

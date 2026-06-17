@@ -80,11 +80,10 @@ class Task(BaseTask):
         self.delay(20, is_save=False)
 
     def check_early_stop(self):
-        min_depth = torch.min(self._tactile_manager.get_min_depth()).item()
-        
-        if min_depth < 20:
+        if self.tactile_overpressed():
             self.metadata['early_stop'] = True
-            self.metadata['min_depth'] = float(min_depth)
+            self.metadata['min_depth'] = float(
+                torch.min(self._tactile_manager.get_min_depth()).item())
             return True
         return False
 

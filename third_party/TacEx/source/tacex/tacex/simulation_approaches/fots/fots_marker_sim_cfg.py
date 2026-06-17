@@ -3,7 +3,7 @@ from dataclasses import MISSING
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.utils import configclass
 
-from ..gelsight_simulator_cfg import GelSightSimulatorCfg
+from ..vbts_simulator_cfg import VBTSSimulatorCfg
 
 # from .fots_marker_sim_frame_transformer import FOTSMarkerFrameTransformerSimulator
 from .fots_marker_sim import FOTSMarkerSimulator
@@ -12,7 +12,7 @@ from .fots_marker_sim import FOTSMarkerSimulator
 
 
 @configclass
-class FOTSMarkerSimulatorCfg(GelSightSimulatorCfg):
+class FOTSMarkerSimulatorCfg(VBTSSimulatorCfg):
     simulation_approach_class: type = FOTSMarkerSimulator
 
     calib_folder_path: str = ""

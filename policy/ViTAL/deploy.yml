@@ -19,8 +19,8 @@ device: cuda:0
 # Camera settings
 camera_names:
   - head
-  - left_gsmini
-  - right_gsmini
+  - left_tactile
+  - right_tactile
 
 # DETR backbone settings
 backbone: resnet18

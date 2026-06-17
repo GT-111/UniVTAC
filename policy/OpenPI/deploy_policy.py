@@ -18,7 +18,7 @@ import safetensors.torch
 _PKG = Path(__file__).parent
 _PATCH_DIR = _PKG / "transformers_replace" / "models"
 if _PATCH_DIR.exists():
-    _SITE = Path(torch.__file__).parent.parent / "site-packages" if hasattr(torch, "__file__") else None
+    _SITE = Path(torch.__file__).parent.parent if hasattr(torch, "__file__") else None
     if _SITE is None:
         import site; _SITE = Path(site.getsitepackages()[0])
     _DST = _SITE / "transformers" / "models"
@@ -31,6 +31,7 @@ from _base_policy import BasePolicy
 from .config import Pi0Config
 from .pi0_pytorch import PI0Pytorch
 from .tokenizer import PaligemmaTokenizer
+from . import transforms as _t
 
 
 @dataclasses.dataclass
@@ -70,43 +71,59 @@ class Policy(BasePolicy):
         meta_path = ckpt_dir / "metadata.pt"
         config_json = ckpt_dir / "config.json"
 
+        action_dim, action_horizon, self.tactile_mode = 32, 10, args.get("tactile_mode", "left_only")
+        meta_loaded = False
         if meta_path.exists():
-            meta = torch.load(meta_path, map_location="cpu", weights_only=False)
-            train_cfg = meta.get("config", {})
-            model_cfg = train_cfg.get("model", {})
-            data_cfg = train_cfg.get("data", {})
-            action_dim = model_cfg.get("action_dim", 32)
-            action_horizon = model_cfg.get("action_horizon", 10)
-            self.tactile_mode = data_cfg.get("tactile_mode") or args.get("tactile_mode", "left_only")
-            print(f"[OpenPI] tactile_mode={self.tactile_mode} (from checkpoint metadata)")
-        elif config_json.exists():
-            with open(config_json) as f:
-                ckpt_cfg = json.load(f)
-            action_dim = ckpt_cfg.get("action_dim", 32)
-            action_horizon = ckpt_cfg.get("action_horizon", 10)
-            self.tactile_mode = args.get("tactile_mode", "left_only")
+            try:
+                meta = torch.load(meta_path, map_location="cpu", weights_only=False)
+                cfg = meta.get("config", {})
+                action_dim = cfg.get("model", {}).get("action_dim", action_dim)
+                action_horizon = cfg.get("model", {}).get("action_horizon", action_horizon)
+                self.tactile_mode = cfg.get("data", {}).get("tactile_mode") or self.tactile_mode
+                meta_loaded = True
+                print(f"[OpenPI] tactile_mode={self.tactile_mode} (from metadata.pt)")
+            except Exception:
+                print(f"[OpenPI] metadata.pt needs flax — using config.json fallback")
+        if not meta_loaded:
+            if config_json.exists():
+                ckpt_cfg = json.load(open(config_json))
+                action_dim = ckpt_cfg.get("action_dim", action_dim)
+                action_horizon = ckpt_cfg.get("action_horizon", action_horizon)
             print(f"[OpenPI] tactile_mode={self.tactile_mode} (from deploy.yml)")
-        else:
+        if not meta_loaded and not config_json.exists():
             raise FileNotFoundError(f"No config found in {ckpt_dir} (need metadata.pt or config.json)")
 
+        # ---- execution horizon (how many actions to execute per inference) ----
+        exec_horizon = args.get("exec_horizon", 1)
+        if exec_horizon <= 0:
+            exec_horizon = action_horizon  # auto: use full chunk
+        self.exec_horizon = min(exec_horizon, action_horizon)
+
         print(f"[OpenPI] task={self.task_name}, camera={self.camera_type}, "
-              f"action_dim={action_dim}, action_horizon={action_horizon}")
+              f"action_dim={action_dim}, action_horizon={action_horizon}, "
+              f"exec_horizon={self.exec_horizon}")
 
         # ---- load norm stats (pi05 uses quantile normalization: q01/q99) ----
         assets = ckpt_dir / "assets"
         norm_dir = assets / "franka" if (assets / "franka").exists() else next(assets.iterdir())
         with open(norm_dir / "norm_stats.json") as f:
             ns = json.load(f)["norm_stats"]
-        # Quantile normalization: normalized = (x - q01) / (q99 - q01 + eps) * 2 - 1
-        # (matching openpi transforms.py NormStats / Normalize)
         self.s_q01 = np.array(ns["state"]["q01"], np.float32)
         self.s_q99 = np.array(ns["state"]["q99"], np.float32)
         self.a_q01 = np.array(ns["actions"]["q01"], np.float32)
         self.a_q99 = np.array(ns["actions"]["q99"], np.float32)
 
+        # ---- action-space transforms (matching UniVTAC training pipeline) ----
+        # mask = make_bool_mask(7, -2) → joints 0-6: delta, gripper 7-8: absolute
+        # (norm stats may be computed on raw absolute values, but DeltaActions
+        #  converts joints to delta before normalization during training.)
+        self._action_mask = _t.make_bool_mask(7, -2)
+        self._to_absolute = _t.AbsoluteActions(self._action_mask)
+
         # ---- build model ----
         cfg = Pi0Config(pi05=True, action_dim=action_dim, action_horizon=action_horizon)
         self.model = PI0Pytorch(cfg)
+
         safetensors.torch.load_model(self.model, str(ckpt_dir / "model.safetensors"))
         self.model = self.model.to(self.device).eval()
         self.action_dim = action_dim
@@ -114,7 +131,8 @@ class Policy(BasePolicy):
         print(f"[OpenPI] Model loaded: {n_params:,} params | device={self.device}")
 
         # ---- tokenizer ----
-        self.tokenizer = PaligemmaTokenizer(max_len=200)
+        tokenizer_path = args.get("tokenizer_path", None)
+        self.tokenizer = PaligemmaTokenizer(max_len=200, model_path=tokenizer_path)
 
     # ------------------------------------------------------------------
 
@@ -128,8 +146,8 @@ class Policy(BasePolicy):
         head_rgb  = to_np(obs["observation"]["head"]["rgb"])
         wrist_rgb = to_np(obs["observation"]["wrist"]["rgb"]) if self.camera_type == "all" \
                     else np.zeros_like(head_rgb)
-        tac_left  = to_np(obs["tactile"]["left_gsmini"]["rgb_marker"])
-        tac_right = to_np(obs["tactile"]["right_gsmini"]["rgb_marker"])
+        tac_left  = to_np(obs["tactile"]["left_tactile"]["rgb_marker"])
+        tac_right = to_np(obs["tactile"]["right_tactile"]["rgb_marker"])
         joint = obs["embodiment"]["joint"].cpu().numpy().astype(np.float32).flatten()
 
         # Map 4 sources → 3 model slots, same as openpi's UniVTACInputs
@@ -146,19 +164,15 @@ class Policy(BasePolicy):
     def eval(self, task, observation):
         enc = self.encode_obs(observation)
 
-        # Quantile normalize state: (x - q01) / (q99 - q01 + eps) * 2 - 1
+        # --- input pipeline (matches training: UniVTACInputs → Normalize → Tokenize → Pad) ---
         state = np.concatenate([enc["joint"], enc["gripper"]]).astype(np.float32)
-        _s_q01 = self.s_q01[:len(state)]
-        _s_q99 = self.s_q99[:len(state)]
-        state_n = (state - _s_q01) / (_s_q99 - _s_q01 + 1e-6) * 2.0 - 1.0
-        state_pad = np.pad(state_n, (0, max(0, self.action_dim - len(state_n))))
+        state_n = _t.normalize_quantile(state, self.s_q01, self.s_q99)
+        state_pad = _t.pad_to_dim(state_n, self.action_dim)
 
-        # Tokenize
         prompt = getattr(task, "instruction", "perform the manipulation task")
-        tokens, tmask = self.tokenizer.tokenize(state_n, prompt) if self.action_dim > 8 \
+        tokens, tmask = self.tokenizer.tokenize(prompt, state_n) if self.action_dim > 8 \
                         else self.tokenizer.tokenize(prompt)
 
-        # Image: uint8 [0,255] → float32 [-1,1], HWC → 1CHW
         def prep(arr):
             t = torch.from_numpy(arr).float().to(self.device) / 127.5 - 1.0
             return t.permute(2, 0, 1).unsqueeze(0) if t.dim() == 3 else t.unsqueeze(0)
@@ -176,15 +190,27 @@ class Policy(BasePolicy):
         with torch.no_grad():
             actions = self.model.sample_actions(str(self.device), obs, num_steps=10)
 
-        # Quantile unnormalize: (x + 1) / 2 * (q99 - q01) + q01 → 8D qpos
-        act = actions[0, 0].cpu().float().numpy()          # (32,) or (action_dim,)
-        a_dim = min(len(self.a_q01), 9)
-        _a_q01 = self.a_q01[:a_dim]
-        _a_q99 = self.a_q99[:a_dim]
-        act_denorm = (act[:a_dim] + 1.0) / 2.0 * (_a_q99 - _a_q01 + 1e-6) + _a_q01
-        qpos = np.concatenate([act_denorm[:7], act_denorm[7:8]])  # 7 arm + 1 gripper
+        # --- output pipeline (matches training: Unnormalize → AbsoluteActions → execute) ---
+        # All deltas in the chunk are relative to the SAME first state (see DeltaActions).
+        state0 = observation["embodiment"]["joint"][:9].cpu().numpy()
 
-        task.take_action(torch.from_numpy(qpos).to(task.device).float(), action_type="qpos")
+        for i in range(self.exec_horizon):
+            if task.eval_success:
+                break
+
+            act = actions[0, i].cpu().float().numpy()
+            act_denorm = _t.unnormalize_quantile(act, self.a_q01, self.a_q99)
+            # HACK: training had double-delta (data already delta + DeltaActions).
+            # model ≈ state[t+1] - 2*state[t], so recover: act + 2*state0
+            act_abs = self._to_absolute(2.0 * state0, act_denorm)
+
+            target_qpos = np.concatenate([act_abs[:7], act_abs[7:8]]).astype(np.float32)
+
+            exec_succ, eval_succ = task.take_action(
+                torch.from_numpy(target_qpos).to(task.device).float(), action_type="qpos")
+
+            if not exec_succ or eval_succ:
+                break
 
     def reset(self):
         pass

@@ -1,11 +1,11 @@
 # from __future__ import annotations
 from isaaclab.utils import configclass
 
-from ..gelsight_simulator_cfg import GelSightSimulatorCfg
+from ..vbts_simulator_cfg import VBTSSimulatorCfg
 from .mlp_fots_sim import MLPFOTSSimulator
 
 @configclass
-class MLPFOTSSimulatorCfg(GelSightSimulatorCfg):
+class MLPFOTSSimulatorCfg(VBTSSimulatorCfg):
     """
     Configuration class for MLP-FOTS optical simulation approach.
     """

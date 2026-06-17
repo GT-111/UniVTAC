@@ -9,15 +9,15 @@ import cv2
 import omni.usd
 import torchvision.transforms.functional as F
 
-from ...gelsight_sensor import GelSightSensor
-from ..gelsight_simulator import GelSightSimulator
+from ...vbts_sensor import VBTSSensor
+from ..vbts_simulator import VBTSSimulator
 from .sim import Taxim
 
 if TYPE_CHECKING:
     from .taxim_sim_cfg import TaximSimulatorCfg
 
 
-class TaximSimulator(GelSightSimulator):
+class TaximSimulator(VBTSSimulator):
     """Wraps around the Taxim simulation for the optical simulation of GelSight sensors
     inside Isaac Sim.
 
@@ -25,7 +25,7 @@ class TaximSimulator(GelSightSimulator):
 
     cfg: TaximSimulatorCfg
 
-    def __init__(self, sensor: GelSightSensor, cfg: TaximSimulatorCfg):
+    def __init__(self, sensor: VBTSSensor, cfg: TaximSimulatorCfg):
         self.sensor = sensor
 
         super().__init__(sensor=sensor, cfg=cfg)

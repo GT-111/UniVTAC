@@ -2,14 +2,14 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
-from ..gelsight_simulator_cfg import GelSightSimulatorCfg
+from ..vbts_simulator_cfg import VBTSSimulatorCfg
 from .taxim_sim import TaximSimulator
 
 """Configuration for a tactile RGB simulation with Taxim."""
 
 
 @configclass
-class TaximSimulatorCfg(GelSightSimulatorCfg):
+class TaximSimulatorCfg(VBTSSimulatorCfg):
     simulation_approach_class: type = TaximSimulator
 
     calib_folder_path: str = ""

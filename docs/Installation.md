@@ -105,12 +105,12 @@ TacEx provides the tactile sensor simulation pipeline. It is bundled in `third_p
 cd third_party/TacEx && bash tacex.sh -i && cd -
 ```
 
-#### 5b. Build tacex_uipc (C++/CUDA extension)
+This installs three editable packages: `tacex`, `tacex_assets`, `tacex_tasks`.
+
+#### 5b. Install vcpkg (required for tacex_uipc)
 
 `tacex_uipc` wraps the [libuipc](https://spirimirror.github.io/libuipc-doc/) FEM
-simulation library. It requires vcpkg for C++ dependency management.
-
-#### 5a. Install vcpkg
+simulation library. It uses vcpkg for C++ dependency management.
 
 ```bash
 mkdir -p ~/Toolchain && cd ~/Toolchain
@@ -118,9 +118,7 @@ git clone https://github.com/microsoft/vcpkg.git
 cd vcpkg && ./bootstrap-vcpkg.sh
 ```
 
-#### 5b. Build
-
-The build script handles tinyxml download and all environment setup automatically:
+#### 5c. Build tacex_uipc (C++/CUDA extension)
 
 ```bash
 bash scripts/build_tacex_uipc.sh
@@ -129,17 +127,40 @@ bash scripts/build_tacex_uipc.sh
 > Override defaults via environment if needed:
 > ```bash
 > CMAKE_CUDA_ARCHITECTURES=90 bash scripts/build_tacex_uipc.sh
-> CUDA_HOME=/usr/local/cuda-12.4 bash scripts/build_tacex_uipc.sh
 > ```
 
-### 6. Verify
+### 6. Sensor 3D Assets
+
+The simulation layer supports three tactile sensors:
+
+| Sensor | Status | 3D assets |
+|--------|--------|-----------|
+| GelSight Mini | Built-in | Self-contained in `third_party/TacEx` |
+| ViTai GF225 | Config ready | Requires `assets/GF225.usd` + `data/Robots/Franka/GF225/WristCamera.usda` |
+| XenseWS | Config ready | Requires `assets/XSense_2.usd` |
+
+GF225 and XenseWS sensor configs, calibration data, and robot definitions are
+already present. Only the **3D CAD models** (sensor case mesh) are missing by
+default. Obtain them from the sensor manufacturers or the TacEx authors.
+
+With the assets in place, use the sensor-specific task configs:
+
+```bash
+# GF225 eval
+python scripts/eval_policy.py <task> default_gf225 <policy>/deploy --total_num 1
+
+# XenseWS eval
+python scripts/eval_policy.py <task> default_xensews <policy>/deploy --total_num 1
+```
+
+### 7. Verify
 
 ```bash
 source .venv/bin/activate
 export OMNI_KIT_ACCEPT_EULA=YES
 
 # Quick import check
-python -c "import tacex_uipc; import curobo; print('OK')"
+python -c "import uipc; import tacex_uipc; print('OK')"
 
 # Run a single eval episode (0% success with NullPolicy)
 python scripts/eval_policy.py grasp_classify default NullPolicy/deploy \

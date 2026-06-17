@@ -74,11 +74,11 @@ class Task(BaseTask):
     def check_early_stop(self):
         can_pose = self.can.get_pose()
         inhand_pose = self._robot_manager.get_inhand_pose(self.can)
-        min_depth = torch.min(self._tactile_manager.get_min_depth()).item()
-        
-        if min_depth < 20:
+
+        if self.tactile_overpressed():
             self.metadata['early_stop'] = True
-            self.metadata['min_depth'] = float(min_depth)
+            self.metadata['min_depth'] = float(
+                torch.min(self._tactile_manager.get_min_depth()).item())
             return True
         if np.abs(inhand_pose.p[2] - self.origin_inhand_pose.p[2]) > 0.05 and \
             np.abs(np.dot(can_pose.to_transformation_matrix()[:3, 2], np.array([0, 0, 1]))) > 0.99:

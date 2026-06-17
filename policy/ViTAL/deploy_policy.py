@@ -35,9 +35,9 @@ class Policy(BasePolicy):
             args['cam_backbone_mapping'] = {'cam_high': 0, 'cam_left_tactile': 1, 'cam_right_tactile': 1}
 
         from clip_pretraining import modified_resnet18
-        gelsight_model = modified_resnet18()
+        tactile_model = modified_resnet18()
         vision_model = modified_resnet18()
-        backbones = [vision_model, gelsight_model]
+        backbones = [vision_model, tactile_model]
 
         self.model = ACT(args, backbones)
 
@@ -45,8 +45,8 @@ class Policy(BasePolicy):
         def tactile_transform(img:torch.Tensor):
             img = transforms.Resize((256, 256))(img.permute(2, 0, 1)) / 255.0
             img = transforms.Normalize(
-                mean=self.model.stats['gelsight_mean'],
-                std=self.model.stats['gelsight_std']
+                mean=self.model.stats['tactile_mean'],
+                std=self.model.stats['tactile_std']
             )(img)
             return img
         def camera_transform(img:torch.Tensor):
@@ -62,8 +62,8 @@ class Policy(BasePolicy):
             cam_wrist = camera_transform(observation["observation"]["wrist"]["rgb"])
         else:
             cam_high = camera_transform(observation["observation"][self.camera_type]["rgb"])
-        left_tac = tactile_transform(observation["tactile"]["left_gsmini"]["rgb_marker"])
-        right_tac = tactile_transform(observation["tactile"]["right_gsmini"]["rgb_marker"])
+        left_tac = tactile_transform(observation["tactile"]["left_tactile"]["rgb_marker"])
+        right_tac = tactile_transform(observation["tactile"]["right_tactile"]["rgb_marker"])
         
         # Extract joint positions (8D: 7 arm + 1 gripper)
         qpos = observation["embodiment"]["joint"][:8]

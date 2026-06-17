@@ -203,7 +203,7 @@ def main():
     deploy_config['task_name'] = task_file_name
     deploy_config['task_config'] = task_config_file.stem
  
-    deploy_config['instuction_file'] = deploy_config.get('instuction_file', task_file_name)
+    deploy_config['instuction_file'] = deploy_config.get('instuction_file') or task_file_name
     if deploy_config['instuction_file'] is not None:
         instructions, _ = get_config(
             deploy_config['instuction_file'], default_root=Path(__file__).parent.parent / 'instructions', type='json'
@@ -223,6 +223,7 @@ def main():
     env_cfg.save_frequency = task_config.get("save_frequency", env_cfg.save_frequency)
     env_cfg.video_frequency = task_config.get("video_frequency", env_cfg.video_frequency)
     env_cfg.random_texture = task_config.get("random_texture", False)
+    env_cfg.tactile_sensor_type = task_config.get("sensor_type", "gsmini")
 
     env_cfg.scene.num_envs = 1
     env_cfg.sim.device = args_cli.device if args_cli.device is not None \

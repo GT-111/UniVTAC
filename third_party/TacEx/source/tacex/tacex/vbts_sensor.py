@@ -15,8 +15,8 @@ from pxr import Sdf
 
 from isaaclab.sensors import SensorBase, TiledCamera, TiledCameraCfg
 
-from .gelsight_sensor_data import GelSightSensorData
-from .simulation_approaches.gelsight_simulator import GelSightSimulator
+from .vbts_sensor_data import VBTSSensorData
+from .simulation_approaches.vbts_simulator import VBTSSimulator
 
 # from torchvision.transforms import v2
 
@@ -26,13 +26,13 @@ from .simulation_approaches.gelsight_simulator import GelSightSimulator
 # from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
 if TYPE_CHECKING:
-    from .gelsight_sensor_cfg import GelSightSensorCfg
+    from .vbts_sensor_cfg import VBTSSensorCfg
 
 
-class GelSightSensor(SensorBase):
-    cfg: GelSightSensorCfg
+class VBTSSensor(SensorBase):
+    cfg: VBTSSensorCfg
 
-    def __init__(self, cfg: GelSightSensorCfg, gelpad_obj=None):
+    def __init__(self, cfg: VBTSSensorCfg, gelpad_obj=None):
         # initialize base class
         super().__init__(cfg)
 
@@ -47,12 +47,12 @@ class GelSightSensor(SensorBase):
         self._indentation_depth: torch.tensor = None
 
         # simulation approaches for simulating GelSight sensor output
-        self.optical_simulator: GelSightSimulator = None
-        self.marker_motion_simulator: GelSightSimulator = None
+        self.optical_simulator: VBTSSimulator = None
+        self.marker_motion_simulator: VBTSSimulator = None
         self.compute_indentation_depth_func = None
 
         # Create empty variables for storing output data
-        self._data = GelSightSensorData()
+        self._data = VBTSSensorData()
         self._data.output = dict.fromkeys(self.cfg.data_types, None)
 
         # Flag to check that sensor is spawned.
@@ -106,7 +106,7 @@ class GelSightSensor(SensorBase):
     """
 
     @property
-    def data(self) -> GelSightSensorData:
+    def data(self) -> VBTSSensorData:
         """Data related to Camera sensor."""
         # update sensors if needed
         self._update_outdated_buffers()
@@ -200,7 +200,7 @@ class GelSightSensor(SensorBase):
     # MARK: _init_impl
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers."""
-        print(f"Initializing GelSight Sensor `{self.cfg.prim_path}`...")
+        print(f"Initializing VBTS Sensor `{self.cfg.prim_path}`...")
 
         # Initialize parent class
         super()._initialize_impl()

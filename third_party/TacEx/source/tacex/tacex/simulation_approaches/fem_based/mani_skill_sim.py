@@ -13,14 +13,14 @@ import omni.usd
 
 from tacex_uipc import UipcObject
 
-from ...gelsight_sensor import GelSightSensor
-from ..gelsight_simulator import GelSightSimulator
+from ...vbts_sensor import VBTSSensor
+from ..vbts_simulator import VBTSSimulator
 from .sim import VisionTactileSensorUIPC
 
 if TYPE_CHECKING:
     from .mani_skill_sim_cfg import ManiSkillSimulatorCfg
 
-class ManiSkillSimulator(GelSightSimulator):
+class ManiSkillSimulator(VBTSSimulator):
     """Wrapper for ManiSkill-ViTac simulator for GelSight sensors.
 
     Instead of IPC, we use UIPC.
@@ -30,8 +30,8 @@ class ManiSkillSimulator(GelSightSimulator):
     cfg: ManiSkillSimulatorCfg
     patch_array = None
 
-    def __init__(self, sensor: GelSightSensor, cfg: ManiSkillSimulatorCfg):
-        self.sensor: GelSightSensor = sensor
+    def __init__(self, sensor: VBTSSensor, cfg: ManiSkillSimulatorCfg):
+        self.sensor: VBTSSensor = sensor
 
         # needed for VisionTactileSensorUIPC class
         self.camera = None

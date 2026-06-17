@@ -4,7 +4,7 @@ from isaaclab.utils import configclass
 
 
 @configclass
-class GelSightSimulatorCfg:
+class VBTSSimulatorCfg:
     """Parent Class for Simulation Approach Cfg classes.
 
     Basically, only `simulation_approach_class` is important (right now at least).

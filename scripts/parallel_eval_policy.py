@@ -82,6 +82,7 @@ def worker_run(args, deploy_config, task_config, task_file_name, policy_name,
         env_cfg.obs_data_type = task_config.get("observations", {})
         env_cfg.save_frequency = task_config.get("save_frequency", env_cfg.save_frequency)
         env_cfg.video_frequency = task_config.get("video_frequency", env_cfg.video_frequency)
+        env_cfg.tactile_sensor_type = task_config.get("sensor_type", "gsmini")
         env_cfg.scene.num_envs = 1
 
         # Device stays default; CUDA env controls GPU routing

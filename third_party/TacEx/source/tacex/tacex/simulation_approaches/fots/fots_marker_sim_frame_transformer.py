@@ -13,8 +13,8 @@ import torchvision.transforms.functional as F
 from isaaclab.sensors import FrameTransformer
 from isaaclab.utils.math import euler_xyz_from_quat
 
-from ...gelsight_sensor import GelSightSensor
-from ..gelsight_simulator import GelSightSimulator
+from ...vbts_sensor import VBTSSensor
+from ..vbts_simulator import VBTSSimulator
 from ..gpu_taxim import TaximSimulator
 from ..gpu_taxim.sim import TaximTorch
 from .sim import MarkerMotion
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .fots_marker_sim_cfg import FOTSMarkerSimulatorCfg
 
 
-class FOTSMarkerFrameTransformerSimulator(GelSightSimulator):
+class FOTSMarkerFrameTransformerSimulator(VBTSSimulator):
     """Wraps around the FOTS simulation for marker simulation of GelSight sensors inside Isaac Sim.
 
     The class uses an instance of the gpu_taxim simulator for generating the deformed height map.
@@ -31,8 +31,8 @@ class FOTSMarkerFrameTransformerSimulator(GelSightSimulator):
 
     cfg: FOTSMarkerSimulatorCfg
 
-    def __init__(self, sensor: GelSightSensor, cfg: FOTSMarkerSimulatorCfg):
-        self.sensor: GelSightSensor = sensor
+    def __init__(self, sensor: VBTSSensor, cfg: FOTSMarkerSimulatorCfg):
+        self.sensor: VBTSSensor = sensor
 
         super().__init__(sensor=sensor, cfg=cfg)
 

@@ -1,6 +1,6 @@
 from dataclasses import MISSING
 
-from tacex import GelSightSensorCfg
+from tacex import VBTSSensorCfg
 from tacex.simulation_approaches.fots import FOTSMarkerSimulatorCfg
 from tacex.simulation_approaches.gpu_taxim import TaximSimulatorCfg
 
@@ -12,7 +12,7 @@ from .gsmini_cfg import GelSightMiniCfg
 
 GELSIGHT_MINI_TAXIM_FOTS_CFG = GelSightMiniCfg()
 GELSIGHT_MINI_TAXIM_FOTS_CFG = GELSIGHT_MINI_TAXIM_FOTS_CFG.replace(
-    sensor_camera_cfg=GelSightSensorCfg.SensorCameraCfg(
+    sensor_camera_cfg=VBTSSensorCfg.SensorCameraCfg(
         prim_path_appendix="/Camera",
         update_period=0,
         resolution=(32, 24),

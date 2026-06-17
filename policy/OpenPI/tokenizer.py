@@ -6,7 +6,10 @@ import numpy as np
 import sentencepiece
 
 
-_DEFAULT_TOKENIZER_PATH = "/data/temp_storage/cache/openpi/big_vision/paligemma_tokenizer.model"
+_DEFAULT_TOKENIZER_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "ckpts", "paligemma_tokenizer.model"
+)
 
 
 class PaligemmaTokenizer:
@@ -17,7 +20,7 @@ class PaligemmaTokenizer:
             self._tokenizer = sentencepiece.SentencePieceProcessor(model_proto=f.read())
 
     def tokenize(self, prompt: str, state: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
-        cleaned_text = prompt.strip().replace("_", " ").replace("\n", " ")
+        cleaned_text = str(prompt).strip().replace("_", " ").replace("\n", " ")
         if state is not None:
             discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 256 + 1)[:-1]) - 1
             state_str = " ".join(map(str, discretized_state))

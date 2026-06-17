@@ -105,7 +105,7 @@ class ClipDataset(torch.utils.data.Dataset):
                  camera_names: List[str], 
                  norm_stats: Dict[str, Union[float, np.ndarray]],
                  image_size: Tuple[int, int] = None, 
-                 gelsight_size: Tuple[int, int] = None,
+                 tactile_size: Tuple[int, int] = None,
                  min_distance = 5,
                  n_images = 10,
                  is_cluster=False):
@@ -141,8 +141,8 @@ class ClipDataset(torch.utils.data.Dataset):
                 self.episode_lengths.append(root.attrs['num_timesteps'])
                 if self.image_size is None:
                     self.image_size = (root.attrs['image_height'], root.attrs['image_width'])
-                if gelsight_size is None:
-                    self.gelsight_size = (root.attrs['gelsight_height'], root.attrs['gelsight_width'])   
+                if tactile_size is None:
+                    self.tactile_size = (root.attrs['gelsight_height'], root.attrs['gelsight_width'])   
 
         for length in self.episode_lengths:
             assert length >= n_images*min_distance*1.4, f"To small of an episode length for the number of images and min_distance. length: {length}, n_images: {n_images}, min_distance: {min_distance}"
@@ -154,7 +154,7 @@ class ClipDataset(torch.utils.data.Dataset):
                 dataset_path = os.path.join(self.dataset_dir, f'episode_{episode_id}.hdf5')
                 with h5py.File(dataset_path, 'r') as root:
                     all_cam_images = []
-                    all_gelsight_images = []
+                    all_tactile_images = []
                     all_positions = []
                     for timestep in range(self.episode_lengths[episode_id]):
                         # get camera images
@@ -177,9 +177,9 @@ class ClipDataset(torch.utils.data.Dataset):
                         gelsight_data = root['observations/gelsight/depth_strain_image'][timestep]
 
                         # resize gelsight data
-                        if self.gelsight_size != gelsight_data.shape[:2]:
+                        if self.tactile_size != gelsight_data.shape[:2]:
                             raise ValueError("Image size must be the same for all cameras")
-                            gelsight_data = cv2.resize(gelsight_data, (self.gelsight_size[1], self.gelsight_size[0]))
+                            gelsight_data = cv2.resize(gelsight_data, (self.tactile_size[1], self.tactile_size[0]))
                         
                         # convert to tensor
                         gelsight_data = torch.tensor(gelsight_data, dtype=torch.float32)
@@ -196,10 +196,10 @@ class ClipDataset(torch.utils.data.Dataset):
                         position = torch.tensor(position[:3], dtype=torch.float32)
 
                         all_cam_images.append(images)
-                        all_gelsight_images.append(gelsight_data)
+                        all_tactile_images.append(gelsight_data)
                         all_positions.append(position)
                     
-                self.episodes[episode_id] = (torch.stack(all_cam_images, axis=0), torch.stack(all_gelsight_images, axis=0), torch.stack(all_positions, axis=0))
+                self.episodes[episode_id] = (torch.stack(all_cam_images, axis=0), torch.stack(all_tactile_images, axis=0), torch.stack(all_positions, axis=0))
 
 
     def __len__(self):
@@ -225,7 +225,7 @@ class ClipDataset(torch.utils.data.Dataset):
         dataset_path = os.path.join(self.dataset_dir, f'episode_{self.episode_ids[index]}.hdf5')
         with h5py.File(dataset_path, 'r') as root:
             all_cam_images = []
-            all_gelsight_images = []
+            all_tactile_images = []
             all_positions = []
             for timestep in timesteps:
                 # get camera images
@@ -252,9 +252,9 @@ class ClipDataset(torch.utils.data.Dataset):
                 gelsight_data = root['observations/gelsight/depth_strain_image'][timestep]
 
                 # resize gelsight data
-                if self.gelsight_size != gelsight_data.shape[:2]:
+                if self.tactile_size != gelsight_data.shape[:2]:
                     raise ValueError("Image size must be the same for all cameras")
-                    gelsight_data = cv2.resize(gelsight_data, (self.gelsight_size[1], self.gelsight_size[0]))
+                    gelsight_data = cv2.resize(gelsight_data, (self.tactile_size[1], self.tactile_size[0]))
                 
                 # convert to tensor
                 gelsight_data = torch.tensor(gelsight_data, dtype=torch.float32)
@@ -271,10 +271,10 @@ class ClipDataset(torch.utils.data.Dataset):
                 position = torch.tensor(position[:3], dtype=torch.float32)
 
                 all_cam_images.append(images)
-                all_gelsight_images.append(gelsight_data)
+                all_tactile_images.append(gelsight_data)
                 all_positions.append(position)
             
-        return torch.stack(all_cam_images, axis=0), torch.stack(all_gelsight_images, axis=0), torch.stack(all_positions, axis=0)
+        return torch.stack(all_cam_images, axis=0), torch.stack(all_tactile_images, axis=0), torch.stack(all_positions, axis=0)
     
     # Create two helper get functions for evaluation
     def get_image(self, episode_idx, timestep, cam_name):
@@ -316,7 +316,7 @@ class ClipDataset(torch.utils.data.Dataset):
 
         
 import torch.nn.functional as F
-def clip_loss_old(image_embeddings, gelsight_embeddings, target_matrix, logit_scale = 1.0, visualize = False):
+def clip_loss_old(image_embeddings, tactile_embeddings, target_matrix, logit_scale = 1.0, visualize = False):
     loss = torch.zeros(image_embeddings.shape[2]).to(image_embeddings.device)
     visualizations = []
     for batch_idx in range(image_embeddings.shape[0]):
@@ -326,10 +326,10 @@ def clip_loss_old(image_embeddings, gelsight_embeddings, target_matrix, logit_sc
         n_cameras = image_embeddings.shape[2]
         for i in range(n_cameras):
             # print('image_embeddings:', image_embeddings.shape)
-            # print('gelsight_embeddings:', gelsight_embeddings.shape)
-            # print('should be 1 if normalized:', torch.norm(image_embeddings[batch_idx, :, i], dim=-1), torch.norm(gelsight_embeddings[batch_idx], dim=-1))
-            image_logits = logit_scale * image_embeddings[batch_idx, :, i] @ gelsight_embeddings[batch_idx].T
-            gelsight_logits = logit_scale * gelsight_embeddings[batch_idx] @ image_embeddings[batch_idx, :, i].T
+            # print('tactile_embeddings:', tactile_embeddings.shape)
+            # print('should be 1 if normalized:', torch.norm(image_embeddings[batch_idx, :, i], dim=-1), torch.norm(tactile_embeddings[batch_idx], dim=-1))
+            image_logits = logit_scale * image_embeddings[batch_idx, :, i] @ tactile_embeddings[batch_idx].T
+            gelsight_logits = logit_scale * tactile_embeddings[batch_idx] @ image_embeddings[batch_idx, :, i].T
 
             if visualize and batch_idx == 0:
                 visualizations.append(image_logits.clone().detach().cpu().numpy()/logit_scale)
@@ -338,27 +338,27 @@ def clip_loss_old(image_embeddings, gelsight_embeddings, target_matrix, logit_sc
                 # visualizations.append((image_softmax + gelsight_softmax)/2.0)
 
             image_loss = F.cross_entropy(image_logits, gelsight_targets)
-            gelsight_loss = F.cross_entropy(gelsight_logits, image_targets)
+            tactile_loss = F.cross_entropy(gelsight_logits, image_targets)
 
-            loss[i] += ((image_loss + gelsight_loss)/2.0).mean()/image_embeddings.shape[0]
+            loss[i] += ((image_loss + tactile_loss)/2.0).mean()/image_embeddings.shape[0]
 
     return loss, visualizations
 
 from tqdm import tqdm
 
 
-def clip_loss(image_embeddings:torch.Tensor, gelsight_embeddings:torch.Tensor, target_matrix:torch.Tensor, logit_scale = 1.0, visualize = False):
+def clip_loss(image_embeddings:torch.Tensor, tactile_embeddings:torch.Tensor, target_matrix:torch.Tensor, logit_scale = 1.0, visualize = False):
     # image_embeddings: batch, clip_N, camera, clip_dim
-    # gelsight_embeddings: batch, clip_N, clip_dim
+    # tactile_embeddings: batch, clip_N, clip_dim
     # same as clip_loss, but vectorized
     n_cameras = image_embeddings.shape[2]
     batch_size = image_embeddings.shape[0]
 
     visualizations = []
     image_embeddings = image_embeddings.permute(0, 2, 1, 3) # batch, camera, clip_N, clip_dim
-    gelsight_embeddings = gelsight_embeddings.unsqueeze(1) # batch, 1, clip_N, clip_dim
-    image_logits = logit_scale * image_embeddings @ gelsight_embeddings.permute(0, 1, 3, 2)
-    gelsight_logits = logit_scale * gelsight_embeddings @ image_embeddings.permute(0, 1, 3, 2)
+    tactile_embeddings = tactile_embeddings.unsqueeze(1) # batch, 1, clip_N, clip_dim
+    image_logits = logit_scale * image_embeddings @ tactile_embeddings.permute(0, 1, 3, 2)
+    gelsight_logits = logit_scale * tactile_embeddings @ image_embeddings.permute(0, 1, 3, 2)
 
     if visualize:
         visualizations = image_logits[0].clone().detach().cpu().numpy()/logit_scale
@@ -369,17 +369,17 @@ def clip_loss(image_embeddings:torch.Tensor, gelsight_embeddings:torch.Tensor, t
 
     # need to make the target matrix B, N, N
     image_loss = F.cross_entropy(image_logits, target_matrix.repeat(image_logits.shape[0], 1, 1), reduce=False).mean(dim=1)
-    gelsight_loss = F.cross_entropy(gelsight_logits, target_matrix.T.repeat(gelsight_logits.shape[0], 1, 1), reduce=False).mean(dim=1)
+    tactile_loss = F.cross_entropy(gelsight_logits, target_matrix.T.repeat(gelsight_logits.shape[0], 1, 1), reduce=False).mean(dim=1)
 
     # print('image_loss:', image_loss.shape)
-    # print('gelsight_loss:', gelsight_loss.shape)
+    # print('tactile_loss:', tactile_loss.shape)
 
 
     # reshape the loss to be B, N_cameras
     image_loss = image_loss.view(batch_size, n_cameras)
-    gelsight_loss = gelsight_loss.view(batch_size, n_cameras)
+    tactile_loss = tactile_loss.view(batch_size, n_cameras)
 
-    loss = ((image_loss + gelsight_loss)/2.0).mean(dim=0)
+    loss = ((image_loss + tactile_loss)/2.0).mean(dim=0)
 
     # return the per-camera loss
 
@@ -412,7 +412,7 @@ def clip_pretraining(train_loader: DataLoader,
     dataset:ClipDataset = train_loader.dataset
     n_cameras = dataset.n_cameras
     camera_sizes = [dataset.image_size]*n_cameras
-    gelsight_size = dataset.gelsight_size
+    tactile_size = dataset.tactile_size
     state_size = 3
 
     # get resnet models for each camera
@@ -423,7 +423,7 @@ def clip_pretraining(train_loader: DataLoader,
     vision_projection = ClipProjectionHead(out_dim=clip_dim).to(device)
 
     # get a resnet18 model for gelsight
-    gelsight_encoder = modified_resnet18(weights=None, features_per_group=features_per_group).to(device)
+    tactile_encoder = modified_resnet18(weights=None, features_per_group=features_per_group).to(device)
 
     # create a projection head, conditioned on state
     # gelsight_projection = ClipProjectionHead(out_dim=clip_dim, conditioning_dim=state_size).to(device)
@@ -432,7 +432,7 @@ def clip_pretraining(train_loader: DataLoader,
     # create a learnable parameter for the logit scale and add it to the optimizer.
     # logit_scale = torch.nn.Parameter(torch.ones(1).to(device))
 
-    optim_params = [{"params": gelsight_encoder.parameters(), "lr": resnet_lr},
+    optim_params = [{"params": tactile_encoder.parameters(), "lr": resnet_lr},
                     {"params": gelsight_projection.parameters(), "lr": projection_lr},
                     {"params": vision_encoder.parameters(), "lr": resnet_lr},
                     {"params": vision_projection.parameters(), "lr": projection_lr},]
@@ -448,7 +448,7 @@ def clip_pretraining(train_loader: DataLoader,
     # train the model
         training_loss = np.zeros(n_cameras)
 
-        gelsight_encoder.train()
+        tactile_encoder.train()
         gelsight_projection.train()
         vision_encoder.train()
         vision_projection.train()
@@ -471,18 +471,18 @@ def clip_pretraining(train_loader: DataLoader,
             # flatten the batch and clip_N dimensions
             gelsight = gelsight.view(-1, gelsight.shape[2], gelsight.shape[3], gelsight.shape[4])
             # position = position.view(-1, position.shape[2])
-            # gelsight_embeddings = gelsight_projection(gelsight_encoder(gelsight), position)
-            gelsight_embeddings = gelsight_projection(gelsight_encoder(gelsight))
+            # tactile_embeddings = gelsight_projection(tactile_encoder(gelsight), position)
+            tactile_embeddings = gelsight_projection(tactile_encoder(gelsight))
 
-            # reshape the gelsight_embeddings to be batch, clip_N, clip_dim
-            gelsight_embeddings = gelsight_embeddings.view(batch_size, clip_N, clip_dim)
+            # reshape the tactile_embeddings to be batch, clip_N, clip_dim
+            tactile_embeddings = tactile_embeddings.view(batch_size, clip_N, clip_dim)
 
             # calculate target matrix
             target_matrix = torch.eye(clip_N).to(device)
 
             # calculate loss - vector of per-camera losses
             if batch_idx == 0 and epoch%plot_freq == 0: # visualize the first batch in each epoch
-                loss, plot_maps = clip_loss(image_embeddings, gelsight_embeddings, target_matrix, visualize=True)
+                loss, plot_maps = clip_loss(image_embeddings, tactile_embeddings, target_matrix, visualize=True)
                 try:
                     for cam_num, plot_map in enumerate(plot_maps):
                         plt.figure()
@@ -495,8 +495,8 @@ def clip_pretraining(train_loader: DataLoader,
                     print('Error in train plots')
                     raise
             else:
-                loss, _ = clip_loss(image_embeddings, gelsight_embeddings, target_matrix, visualize=False)
-                # loss_vect, _ = clip_loss_vectorized(image_embeddings, gelsight_embeddings, target_matrix, visualize=False)
+                loss, _ = clip_loss(image_embeddings, tactile_embeddings, target_matrix, visualize=False)
+                # loss_vect, _ = clip_loss_vectorized(image_embeddings, tactile_embeddings, target_matrix, visualize=False)
                 # print('loss diff', loss - loss_vect, (loss - loss_vect).mean())
                 # assert torch.allclose(loss, loss_vect, atol=1e-5), f'loss: {loss}, loss_vect: {loss_vect}'
             training_loss += loss.clone().detach().cpu().numpy()
@@ -510,7 +510,7 @@ def clip_pretraining(train_loader: DataLoader,
         training_losses[epoch] = training_loss/len(train_loader)
 
         # test the model
-        gelsight_encoder.eval()
+        tactile_encoder.eval()
         gelsight_projection.eval()
         vision_encoder.eval()
         vision_projection.eval()
@@ -535,11 +535,11 @@ def clip_pretraining(train_loader: DataLoader,
                 # flatten the batch and clip_N dimensions
                 gelsight = gelsight.view(-1, gelsight.shape[2], gelsight.shape[3], gelsight.shape[4])
                 # position = position.view(-1, position.shape[2])
-                # gelsight_embeddings = gelsight_projection(gelsight_encoder(gelsight), position)
-                gelsight_embeddings = gelsight_projection(gelsight_encoder(gelsight))
+                # tactile_embeddings = gelsight_projection(tactile_encoder(gelsight), position)
+                tactile_embeddings = gelsight_projection(tactile_encoder(gelsight))
 
-                # reshape the gelsight_embeddings to be batch, clip_N, clip_dim
-                gelsight_embeddings = gelsight_embeddings.view(batch_size, clip_N, clip_dim)
+                # reshape the tactile_embeddings to be batch, clip_N, clip_dim
+                tactile_embeddings = tactile_embeddings.view(batch_size, clip_N, clip_dim)
 
                 # calculate target matrix
                 target_matrix = torch.eye(clip_N).to(device)
@@ -547,7 +547,7 @@ def clip_pretraining(train_loader: DataLoader,
                 # calculate loss - vector of per-camera losses
                             # calculate loss - vector of per-camera losses
                 if batch_idx == 0 and epoch%plot_freq == 0: # visualize the first batch in each epoch
-                    loss, plot_maps = clip_loss(image_embeddings, gelsight_embeddings, target_matrix, visualize=True)
+                    loss, plot_maps = clip_loss(image_embeddings, tactile_embeddings, target_matrix, visualize=True)
                     try:
                         for cam_num, plot_map in enumerate(plot_maps):
                             plt.figure()
@@ -560,7 +560,7 @@ def clip_pretraining(train_loader: DataLoader,
                         print('Error in test plots')
                         raise
                 else:
-                    loss, _ = clip_loss(image_embeddings, gelsight_embeddings, target_matrix, visualize=False)
+                    loss, _ = clip_loss(image_embeddings, tactile_embeddings, target_matrix, visualize=False)
                 test_loss += loss.clone().detach().cpu().numpy()
         testing_losses[epoch] = test_loss/len(test_loader)
 
@@ -586,7 +586,7 @@ def clip_pretraining(train_loader: DataLoader,
         if (epoch+1) % save_freq == 0:
             torch.save(vision_encoder.state_dict(), f'{save_dir}/epoch_{epoch}_vision_encoder.pth')
             torch.save(vision_projection.state_dict(), f'{save_dir}/epoch_{epoch}_vision_projection.pth')
-            torch.save(gelsight_encoder.state_dict(), f'{save_dir}/epoch_{epoch}_gelsight_encoder.pth')
+            torch.save(tactile_encoder.state_dict(), f'{save_dir}/epoch_{epoch}_tactile_encoder.pth')
             torch.save(gelsight_projection.state_dict(), f'{save_dir}/epoch_{epoch}_gelsight_projection.pth')
 
         # print('logit_scale:', logit_scale)

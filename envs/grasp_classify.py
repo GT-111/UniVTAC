@@ -90,8 +90,14 @@ class Task(BaseTask):
         self.move(self.atom.grasp_actor(
             self.prism, contact_point_id=cid, pre_dis=0.04, dis=0.0, is_close=False
         ))
-        gripper_qpos = self.rng.uniform(0.0065, 0.0075) / 0.039
-        self.move(self.atom.close_gripper(gripper_qpos))
+        if self.is_zxhand:
+            # ZX hand gripper is angular; close adaptively on the thin prism
+            # rather than commanding a GelSight-specific metric finger gap.
+            self.cfg.use_adaptive_grasp = True
+            self.move(self.atom.close_gripper())
+        else:
+            gripper_qpos = self.rng.uniform(0.0065, 0.0075) / 0.039
+            self.move(self.atom.close_gripper(gripper_qpos))
         self.move(self.atom.move_by_displacement(z=0.05))
         
         self.target_pose = self.target.get_pose().add_bias([0.0, 0.0, 0.015])

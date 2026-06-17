@@ -1,6 +1,6 @@
 from isaaclab.utils import configclass
 
-from ..gelsight_simulator_cfg import GelSightSimulatorCfg
+from ..vbts_simulator_cfg import VBTSSimulatorCfg
 from .mani_skill_sim import ManiSkillSimulator
 
 """Configuration for marker motion simulation via FEM simulation (like ManiSkill-ViTac used)."""
@@ -8,7 +8,7 @@ from .mani_skill_sim import ManiSkillSimulator
 from typing import Literal
 
 @configclass
-class ManiSkillSimulatorCfg(GelSightSimulatorCfg):
+class ManiSkillSimulatorCfg(VBTSSimulatorCfg):
     sensor_type:Literal['gsmini', 'xsensews', 'gf225'] = None
 
     simulation_approach_class: type = ManiSkillSimulator
@@ -33,9 +33,9 @@ class ManiSkillSimulatorCfg(GelSightSimulatorCfg):
 
     normalize: bool = False
 
-    camera_to_surface: float = 0.0283,
+    camera_to_surface: float = 0.0283
 
-    real_size: tuple[float, float] = (0.0266, 0.0209),
+    real_size: tuple[float, float] = (0.0266, 0.0209)
 
     tactile_img_res: tuple[int, int] = (320, 240)
     """Resolution of the Tactile Image.

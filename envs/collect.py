@@ -77,9 +77,10 @@ class Task(BaseTask):
             grasp_qpos = np.random.uniform(0.0118, 0.013) / self._robot_manager.gripper_max_qpos
             self.move(self.atom.close_gripper(pos=grasp_qpos))
             self.metadata['grasp_qpos'] = grasp_qpos
-        elif self.cfg.tactile_sensor_type == 'xensews':
-            grasp_qpos = np.random.uniform(0.0118, 0.013) / self._robot_manager.gripper_max_qpos
-            self.move(self.atom.close_gripper(pos=grasp_qpos))
+        elif self.cfg.tactile_sensor_type == 'zxhand':
+            self.cfg.use_adaptive_grasp = True
+            self.move(self.atom.close_gripper())
+            self.metadata['grasp_threshold'] = self._tactile_manager.get_min_depth().tolist()
         self.cfg.keep_contact = True
 
     def _play_once(self):

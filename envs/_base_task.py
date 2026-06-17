@@ -54,7 +54,7 @@ from isaaclab.utils.noise import (
 )
 
 from tacex_assets import TACEX_ASSETS_DATA_DIR
-from tacex_assets.sensors.gelsight_mini.gsmini_cfg import GelSightMiniCfg
+from tacex_assets.sensors.gelsight_mini.gsmini_cfg import GelSightMiniCfg  # noqa: unused import
 from tacex_uipc import (
     UipcRLEnv,
     UipcIsaacAttachments,
@@ -94,6 +94,9 @@ class BaseTaskCfg(DirectRLEnvCfg):
     video_frequency = 1
     render_frequency = 0
     video_size = (960, 320)
+    # debug: also record the pre_move (grasp/approach) phase into the video so a
+    # failed episode still shows the full motion. Does NOT affect saved hdf5 data.
+    record_premove_video = False
 
     ui_window_class_type = BaseEnvWindow
 
@@ -188,7 +191,7 @@ class BaseTaskCfg(DirectRLEnvCfg):
     ]
 
     robot: RobotCfg = None
-    tactile_sensor_type:Literal['gsmini', 'xensews', 'gf225'] = 'gsmini'
+    tactile_sensor_type:Literal['gsmini', 'gf225', 'zxhand'] = 'gsmini'
 
     planner_time_dilation_factor: float = 1.0
 
@@ -257,12 +260,29 @@ class BaseTask(UipcRLEnv):
             cfg.robot = create_franka_gsmini_gripper(data_type=data_type)
         elif cfg.tactile_sensor_type == 'gf225':
             cfg.robot = create_franka_gf225_gripper(data_type=data_type)
-        elif cfg.tactile_sensor_type == 'xensews':
-            cfg.robot = create_franka_xensews_gripper(data_type=data_type)
+        elif cfg.tactile_sensor_type == 'zxhand':
+            cfg.robot = create_franka_zx_hand_gripper(data_type=data_type)
+            # ZX hand has no WristCamera; the official plugin uses Hand_Camera
+            # mounted under right_base_link as the wrist-equivalent view.
+            for camera in cfg.cameras:
+                if getattr(camera, "name", None) == "wrist":
+                    camera.prim_path = "/World/envs/env_.*/Robot/right_base_link/Hand_Camera"
         else:
             raise ValueError(f'Unknown tactile sensor type: {cfg.tactile_sensor_type}')
         
-        if cfg.adaptive_grasp_depth_threshold is None:
+        if cfg.tactile_sensor_type == 'zxhand':
+            # The official ZX example commands a smooth open/close ramp (constant
+            # velocity), not the contact-adaptive stepping used for GelSight. The
+            # ZX closed-chain linkage moves jerkily, so adaptive_set_gripper
+            # overshoots and rams the gripper shut even on an "open" command.
+            # Use the plain plan_gripper ramp instead.
+            cfg.use_adaptive_grasp = False
+            # Per-task adaptive_grasp_depth_threshold values are tuned in GelSight
+            # millimetre units (~27 mm). The ZX embodiment reports processed
+            # camera depth (rest ~+1 mm, full indentation ~-4 mm), so always use
+            # the embodiment's own threshold and ignore the gsmini-tuned override.
+            cfg.adaptive_grasp_depth_threshold = cfg.robot.adaptive_grasp_depth_threshold
+        elif cfg.adaptive_grasp_depth_threshold is None:
             cfg.adaptive_grasp_depth_threshold = cfg.robot.adaptive_grasp_depth_threshold
         return cfg
  
@@ -331,6 +351,24 @@ class BaseTask(UipcRLEnv):
         else:
             log(f'[{self.step_count:>3d}][{name:^20}] cost: {(time.perf_counter() - self._timers[name])*1000:.2f} ms')
             self._timers.pop(name)
+
+    @property
+    def is_zxhand(self) -> bool:
+        """True when the active embodiment is the official Xense ZX hand."""
+        return self.cfg.tactile_sensor_type == 'zxhand'
+
+    def tactile_overpressed(self, gsmini_threshold: float = 20.0) -> bool:
+        """Embodiment-aware 'gel is over-compressed / grasp failed' signal.
+
+        GelSight/GF225 report gel height (~27-30 mm at rest, smaller on contact),
+        so over-compression shows up as a low value (< gsmini_threshold mm).
+        The ZX hand reports processed camera depth (rest ~+1 mm, full indentation
+        ~-4 mm), so over-compression is a strongly negative value instead.
+        """
+        min_depth = torch.min(self._tactile_manager.get_min_depth()).item()
+        if self.is_zxhand:
+            return min_depth < -3.8
+        return min_depth < gsmini_threshold
 
     def pre_move(self):
         pass
@@ -541,7 +579,10 @@ class BaseTask(UipcRLEnv):
         
         self.step_count += 1
 
+        raw_save = is_save and (not self.mode == 'eval_test')
         is_save = is_save and (not self.in_pre_move) and (not self.mode == 'eval_test')
+        # video may optionally include the pre_move phase (debug only)
+        vid_on = raw_save if self.cfg.record_premove_video else is_save
         save_freq = (self.cfg.video_frequency > 0 and self.step_count % self.cfg.save_frequency == 0)
         video_freq = (self.cfg.video_frequency > 0 and self.step_count % self.cfg.video_frequency == 0)
         render_freq = (self.cfg.render_frequency > 0 and self.step_count % self.cfg.render_frequency == 0)
@@ -550,7 +591,7 @@ class BaseTask(UipcRLEnv):
         for _ in range(self.cfg.decimation):
             self.sim.step(render=False)
 
-        if render_freq or (self.mode == 'collect' and is_save and save_freq) or (is_save and video_freq) \
+        if render_freq or (self.mode == 'collect' and is_save and save_freq) or (vid_on and video_freq) \
             or (self.mode == 'eval' and not self.in_pre_move):
             self._update_render()
 
@@ -571,7 +612,7 @@ class BaseTask(UipcRLEnv):
             if self.save_count > self.cfg.max_save_frames-1:
                 self.plan_success = False
  
-        if is_save and video_freq:
+        if vid_on and video_freq:
             if obs is None:
                 obs = self._get_observations()
             self.video_handler.write(self.get_frame_shot(obs))
@@ -691,7 +732,7 @@ class BaseTask(UipcRLEnv):
         delay: bool = True,
         constraint_pose = None,
         time_dilation_factor = None,
-        gripper_depth_threshold = None
+        gripper_depth_threshold = None,
     ):
         """
         Take action for the robot.
@@ -813,6 +854,24 @@ class BaseTask(UipcRLEnv):
                         gripper_seq['velocity'][idx]
                     )
                 self._step(is_save)
+            # The ZX gripper is PD-controlled (arm-only teleport, no gripper snap),
+            # so resend the final waypoint and let the closed-chain linkage settle
+            # onto the planned end pose.
+            if getattr(self._robot_manager, "robot_type", None) == "franka_zx_hand" \
+                    and arm_seq is not None and arm_steps > 0:
+                fi = arm_steps - 1
+                self._robot_manager.set_arm(
+                    arm_seq['position'][fi],
+                    arm_seq['velocity'][fi],
+                )
+                if gripper_steps > 0:
+                    gi = min(gripper_steps - 1, fi)
+                    self._robot_manager.set_gripper(
+                        gripper_seq['position'][gi],
+                        gripper_seq['velocity'][gi],
+                    )
+                for _ in range(6):
+                    self._step(is_save)
         return True
 
     def check_early_stop(self):
@@ -859,6 +918,9 @@ class BaseTask(UipcRLEnv):
     def adaptive_set_gripper(self, qpos, depth_threshold:float=None):
         max_steps = 1000
         default_step, contact_step = 0.0005, 0.00005
+        if getattr(self._robot_manager, "robot_type", None) == "franka_zx_hand":
+            # ZX hand gripper is angular (rad), not prismatic (m).
+            default_step, contact_step = 0.012, 0.003
         last_qpos = self._robot_manager.get_gripper_qpos()
         max_depth = self.cfg.robot.tactile_far_plane \
             * torch.ones_like(self._tactile_manager.get_min_depth()) # mm
@@ -904,12 +966,14 @@ class BaseTask(UipcRLEnv):
                 target_qpos = qpos
             else:
                 target_qpos = current_qpos + step_size
-            position = torch.tensor([target_qpos, target_qpos], device=self._robot_manager.device)
+            n_grip = self._robot_manager._gripper_ids.numel()
+            position = torch.full((n_grip,), target_qpos, device=self._robot_manager.device)
             velocity = (position - current_qpos)/self.cfg.sim.dt
             last_qpos = current_qpos
             yield position, velocity, True
 
-        final_position = torch.tensor([last_qpos, last_qpos], device=self._robot_manager.device)
+        n_grip = self._robot_manager._gripper_ids.numel()
+        final_position = torch.full((n_grip,), last_qpos, device=self._robot_manager.device)
         yield final_position, torch.zeros_like(final_position), False
 
     def gravity_rotate(self, actor:Actor, target_vec, target_axis=[0, 0, 1], is_save=True):

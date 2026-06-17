@@ -2,7 +2,7 @@ from dataclasses import MISSING
 
 from isaaclab.utils import configclass
 
-from tacex import GelSightSensor, GelSightSensorCfg
+from tacex import VBTSSensor, VBTSSensorCfg
 from tacex.simulation_approaches.fots import FOTSMarkerSimulatorCfg
 from tacex.simulation_approaches.gpu_taxim import TaximSimulatorCfg
 
@@ -12,18 +12,18 @@ from tacex_assets import TACEX_ASSETS_DATA_DIR
 
 
 @configclass
-class XenseWSCfg(GelSightSensorCfg):
-    class_type: type = GelSightSensor
+class XenseWSCfg(VBTSSensorCfg):
+    class_type: type = VBTSSensor
 
-    case_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    case_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=52.8 / 1000, length=27 / 1000, height=22 / 1000
     )
 
-    gelpad_dimensions: GelSightSensorCfg.Dimensions = GelSightSensorCfg.Dimensions(
+    gelpad_dimensions: VBTSSensorCfg.Dimensions = VBTSSensorCfg.Dimensions(
         width=29.366 / 1000, length=17.476 / 1000, height=2.168 / 1000
     )
 
-    sensor_camera_cfg: GelSightSensorCfg.SensorCameraCfg = GelSightSensorCfg.SensorCameraCfg(
+    sensor_camera_cfg: VBTSSensorCfg.SensorCameraCfg = VBTSSensorCfg.SensorCameraCfg(
         prim_path_appendix="/Camera",
         update_period=0,
         resolution=(320, 160),
@@ -47,7 +47,7 @@ class XenseWSCfg(GelSightSensorCfg):
     """
 
     optical_sim_cfg = TaximSimulatorCfg(
-        calib_folder_path=f"{TACEX_ASSETS_DATA_DIR}/Sensors/GelSight_Mini/calibs/640x480",
+        calib_folder_path=f"{TACEX_ASSETS_DATA_DIR}/Sensors/XenseWS/calibs/640x480",
         gelpad_height=gelpad_dimensions.height,
         gelpad_to_camera_min_distance=0.0230,
         with_shadow=False,
@@ -57,7 +57,7 @@ class XenseWSCfg(GelSightSensorCfg):
 
     marker_motion_sim_cfg = FOTSMarkerSimulatorCfg(
         lamb=[0.00125, 0.00021, 0.00038],
-        pyramid_kernel_size=[51, 21, 11, 5],  # [11, 11, 11, 11, 11, 5],
+        pyramid_kernel_size=[51, 21, 11, 5],
         kernel_size=5,
         marker_params=FOTSMarkerSimulatorCfg.MarkerParams(
             num_markers_col=11,
@@ -67,7 +67,7 @@ class XenseWSCfg(GelSightSensorCfg):
             dx=26,
             dy=29,
         ),
-        tactile_img_res=(320, 240),
+        tactile_img_res=sensor_camera_cfg.resolution,     # (320, 160) — match camera
         device="cuda",
         frame_transformer_cfg=MISSING,
     )

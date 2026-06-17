@@ -57,13 +57,13 @@ def preprocess_observation_pytorch(observation, *, train=False, image_keys=IMAGE
 
     for key in image_keys:
         image = observation.images[key]
-        is_channels_first = image.shape[1] == 3
+        is_channels_first = image.shape[-3] == 3 if image.dim() >= 3 else False
         if is_channels_first:
-            image = image.permute(0, 2, 3, 1)
+            image = image.permute(0, 2, 3, 1) if image.dim() == 4 else image.unsqueeze(0).permute(0, 2, 3, 1)
         if image.shape[1:3] != image_resolution:
             image = resize_with_pad_torch(image, *image_resolution)
         if is_channels_first:
-            image = image.permute(0, 3, 1, 2)
+            image = image.permute(0, 3, 1, 2) if image.dim() == 4 else image.unsqueeze(0).permute(0, 3, 1, 2)
         out_images[key] = image
 
     out_masks = {}

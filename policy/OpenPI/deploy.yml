@@ -4,7 +4,7 @@ seed: 0
 # Path to trained openpi checkpoint:
 #   - HuggingFace repo ID (auto-downloaded): GT-111/pi05_univtac_lift_can
 #   - Local path: /path/to/checkpoint
-checkpoint_dir: GT-111/pi05_univtac_lift_can
+checkpoint_dir: /home/a25278/Workspaces/TactileWS/ckpts/pi05_lift_can_60_epoch
 
 # Tactile fusion mode — fallback when checkpoint has no metadata.pt.
 # Auto-detected from metadata.pt for fine-tuned checkpoints.
@@ -14,6 +14,17 @@ checkpoint_dir: GT-111/pi05_univtac_lift_can
 #   drop_wrist:           head + left tactile + right tactile (wrist dropped)
 #   none:                 head + wrist only (no tactile)
 tactile_mode: left_only
+
+# Execution horizon — how many actions from the predicted chunk to execute
+# before re-inference. 1 = re-inference every step (slow, reactive).
+# action_horizon = execute the entire chunk before re-inference (fast).
+# Typical: 10, 16, 32, 50 — trades off speed vs reactivity.
+# Set to 0 or -1 to auto-use the model's action_horizon.
+exec_horizon: 4
+
+# Tokenizer model path (optional — defaults to env PALIGEMMA_TOKENIZER_PATH
+# or ../../ckpts/paligemma_tokenizer.model relative to this policy dir)
+tokenizer_path: /home/a25278/Workspaces/TactileWS/ckpts/paligemma_tokenizer.model
 
 instruction_type: seen
 instuction_file: null
