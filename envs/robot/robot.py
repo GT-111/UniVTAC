@@ -243,11 +243,24 @@ class RobotManager:
     def set_gripper(self, pos:torch.Tensor, vel:torch.Tensor=None, env_ids:slice=None, force:bool=True):
         '''设置目标位姿'''
         if self.robot_type == 'franka_zx_hand':
-            # Intent-based bang-bang (not relative to current pos): a high target
-            # means "open" -> push open and stall/hold at the joint limit; a low
-            # target means "close" -> push closed and stall/hold on the object.
-            # (sign(target-cur) fails because the gripper inits fully open, so a
-            # half-open command would read as "close" and slam shut.)
+            # Velocity sign takes priority when available: adaptive grasping
+            # yields HIGH position targets (near 0.99, the open pose) while
+            # still closing, so the old intent-based threshold would wrongly
+            # push OPEN instead of CLOSE.  When vel is zero/None, fall back
+            # to the intent-based position threshold.
+            if vel is not None and torch.is_tensor(vel) and vel.numel() > 0:
+                v_mean = vel.reshape(-1).float().mean().item()
+                if abs(v_mean) > 1e-8:
+                    speed = self._ZX_GRIPPER_SPEED
+                    if v_mean < 0:
+                        speed = -speed
+                    v = torch.full(
+                        (self.task.num_envs, self._gripper_ids.numel()),
+                        speed, device=self.device,
+                    )
+                    self.robot.set_joint_velocity_target(v, joint_ids=self._gripper_ids, env_ids=env_ids)
+                    return
+            # Fallback: intent-based bang-bang from position threshold.
             target_val = float(torch.as_tensor(pos).reshape(-1)[0])
             speed = self._ZX_GRIPPER_SPEED
             if target_val <= 0.4 * self.gripper_max_qpos:

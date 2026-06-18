@@ -84,6 +84,7 @@ task_config, task_config_file = get_config(
 
 if task_config.get('render_frequency', 1) == 0:
     args_cli.livestream = 2
+    args_cli.headless = True
 
 # launch omniverse app, must done before importing anything from omni.isaac
 app_launcher = AppLauncher(args_cli)
@@ -190,6 +191,7 @@ def main():
         "planner_time_dilation_factor", env_cfg.planner_time_dilation_factor)
     env_cfg.obs_data_type = task_config.get("observations", {})
     env_cfg.random_texture = task_config.get("random_texture", False)
+    env_cfg.record_premove_video = task_config.get("record_premove_video", env_cfg.record_premove_video)
 
     env_cfg.scene.num_envs = 1
     

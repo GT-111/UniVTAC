@@ -68,13 +68,13 @@ FRANKA_PANDA_ARM_ZX_HAND_CFG = ArticulationCfg(
         ),
         # Gripper drive — EXACT match of the USD native drive on the single driven
         # joint `right_Left_1_Joint`: a stiff VELOCITY drive (stiffness 0, damping
-        # 1e4, maxForce 10). vel_target>0 opens, <0 closes, =0 locks in place
+        # 1e4, maxForce 200). vel_target>0 opens, <0 closes, =0 locks in place
         # (the high damping resists drift -> holds the grasp). The official
         # cust_gripper commands ONLY this joint; driving both over-constrains the
         # loop and collapses the gripper.
         "zx_drive": ImplicitActuatorCfg(
             joint_names_expr=["right_Left_1_Joint"],
-            effort_limit_sim=10.0,
+            effort_limit_sim=200.0,
             velocity_limit_sim=130.0,
             stiffness=0.0,
             damping=10000.0,

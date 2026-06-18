@@ -10,9 +10,12 @@ random_texture: false # set to true to enable random texture
 
 use_seed: true
 episode_num: 5
+max_seed: 15
 
 sensor_type: zxhand
 planner_time_dilation_factor: 0.35
+
+record_premove_video: true
 
 observations:
   camera: ['rgb']
