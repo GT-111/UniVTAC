@@ -112,9 +112,13 @@ class RobotManager:
             self.robot.write_joint_position_limit_to_sim(limits, joint_ids=self._gripper_ids)
             self.robot.write_joint_armature_to_sim(0.05, joint_ids=self._gripper_ids)
 
-            # Ensure finger/linkage mesh prims have CollisionAPI so that
-            # PhysX contact with UIPC objects is detected.
-            self._ensure_finger_collision()
+            # NOTE: _ensure_finger_collision() is DISABLED — adding CollisionAPI
+            # to finger meshes with enabled_self_collisions=True on the 4-bar
+            # closed-chain linkage creates complex contact pairs that hang PhysX.
+            # The ZX USD already has collision geometry on finger bodies; if
+            # fingers pass through objects, the issue is elsewhere (UIPC sync,
+            # solver_velocity_iterations, or position teleport).
+            # self._ensure_finger_collision()
 
         self.root_pose = Pose.from_list(self.robot.data.root_link_pos_w[0])
         planner_cfg = CuroboPlannerCfg(
