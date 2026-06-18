@@ -313,7 +313,11 @@ class BaseTask(UipcRLEnv):
         '''
         self._setup_base_scene()
         self.scene.clone_environments(copy_from_source=False)
-        
+
+        # ZX finger collision proxies: create UIPC objects (after clone, before setup_sim)
+        if self._zx_finger_collision is not None:
+            self._zx_finger_collision.create_uipc_objects()
+
         self._actor_manager = ActorManager(self)
         self.create_actors()
 
@@ -334,7 +338,14 @@ class BaseTask(UipcRLEnv):
 
         # add lights
         self.cfg.light.spawn.func(self.cfg.light.prim_path, self.cfg.light.spawn)
-    
+
+        # ZX finger collision proxies: create USD prims (before clone)
+        self._zx_finger_collision = None
+        if self.is_zxhand:
+            from envs.utils.zx_finger_collision import ZxFingerCollisionManager
+            self._zx_finger_collision = ZxFingerCollisionManager(self)
+            self._zx_finger_collision.create_usd_prims()
+
     def create_noise(self, vec=[0.0, 0.0, 0.0], euler=[0.0, 0.0, 0.0]) -> Pose:
         '''Create random noise pose'''
         return Pose.create_noise(vec=vec, euler=euler, rng=self.rng)
@@ -502,6 +513,9 @@ class BaseTask(UipcRLEnv):
         self.keep_still_times = 0
         self.metadata = {}
         self.log = ''
+
+        if self._zx_finger_collision is not None:
+            self._zx_finger_collision.reset()
 
     def pause(self):
         self.sim.pause()

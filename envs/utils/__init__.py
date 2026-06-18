@@ -4,6 +4,7 @@ try:
     from .atom import Action, Atom
     from .transforms import *
     from .data import *
+    from .zx_finger_collision import ZxFingerCollisionManager
 except:
     from .transforms import *
     from .data import *

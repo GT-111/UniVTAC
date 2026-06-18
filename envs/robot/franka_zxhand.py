@@ -93,12 +93,13 @@ class FrankaZXHand(Robot):
         self._offset = self._calibrate_zx_gripper_offset()
         self.origin_pose = self.get_gripper_center_pose()
 
-        # Ensure finger/linkage mesh prims have CollisionAPI.
-        # The ZX USD may not include CollisionAPI on all meshes, and
-        # UsdFileCfg.collision_props only *modifies* existing collision
-        # — it never creates new CollisionAPI.  Without collision geometry
-        # on the fingers, PhysX won't detect contact with UIPC objects.
-        self._ensure_finger_collision()
+        # NOTE: _ensure_finger_collision() is DISABLED — adding CollisionAPI
+        # to finger meshes with enabled_self_collisions=True on the 4-bar
+        # closed-chain linkage creates complex contact pairs that hang PhysX.
+        # The ZX USD already has collision geometry on finger bodies; if
+        # fingers pass through objects, the issue is elsewhere (UIPC sync,
+        # solver_velocity_iterations, or position teleport).
+        # self._ensure_finger_collision()
 
     @staticmethod
     def _iter_descendants(prim):
