@@ -1,8 +1,4 @@
 {
-    "insert_hdmi": {
-        "camera_type": "head",
-        "downsample": 1
-    },
     "lift_bottle": {
         "camera_type": "head",
         "downsample": 1
@@ -36,6 +32,10 @@
         "downsample": 1
     },
     "grasp_classify": {
+        "camera_type": "head",
+        "downsample": 1
+    },
+    "insert_HDMI": {
         "camera_type": "head",
         "downsample": 1
     }
