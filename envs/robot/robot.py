@@ -112,6 +112,10 @@ class RobotManager:
             self.robot.write_joint_position_limit_to_sim(limits, joint_ids=self._gripper_ids)
             self.robot.write_joint_armature_to_sim(0.05, joint_ids=self._gripper_ids)
 
+            # Ensure finger/linkage mesh prims have CollisionAPI so that
+            # PhysX contact with UIPC objects is detected.
+            self._ensure_finger_collision()
+
         self.root_pose = Pose.from_list(self.robot.data.root_link_pos_w[0])
         planner_cfg = CuroboPlannerCfg(
             dt=self.task.cfg.sim.dt,
@@ -152,6 +156,44 @@ class RobotManager:
         R_hand = hand.to_transformation_matrix()[:3, :3]
         offset_local = R_hand.T @ (self._gel_midpoint() - hand.p)
         return Pose(p=(-offset_local).tolist(), q=[1.0, 0.0, 0.0, 0.0])
+
+    @staticmethod
+    def _iter_descendants(prim):
+        """Recursively yield all descendant prims (pxr.Usd has no GetDescendants)."""
+        for child in prim.GetChildren():
+            yield child
+            yield from RobotManager._iter_descendants(child)
+
+    def _ensure_finger_collision(self):
+        """Apply CollisionAPI to every Mesh prim under finger body prims.
+
+        The ZX USD may not include CollisionAPI on all meshes, and
+        UsdFileCfg.collision_props only *modifies* existing collision — it
+        never creates new CollisionAPI. Without collision geometry on the
+        fingers, PhysX won't detect contact with UIPC objects.
+        """
+        from pxr import UsdPhysics
+        try:
+            import omni.usd
+            stage = omni.usd.get_context().get_stage()
+        except Exception:
+            return  # Kit not running
+
+        # prim_path may be a glob (e.g. "env_.*") — fix to concrete env_0
+        base_path = self.cfg.robot.prim_path
+        if "env_.*" in base_path:
+            base_path = base_path.replace("env_.*", "env_0")
+
+        for finger_name in ("xense_leftfinger", "xense_rightfinger"):
+            finger_prim_path = f"{base_path}/{finger_name}"
+            finger_prim = stage.GetPrimAtPath(finger_prim_path)
+            if not finger_prim.IsValid():
+                continue
+            for mesh_prim in self._iter_descendants(finger_prim):
+                if mesh_prim.GetTypeName() != "Mesh":
+                    continue
+                if not UsdPhysics.CollisionAPI(mesh_prim):
+                    UsdPhysics.CollisionAPI.Apply(mesh_prim)
 
     def ee_to_gripper_center(self, ee_pose:Pose) -> Pose:
         """EE (panda_hand) -> grasp TCP."""

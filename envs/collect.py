@@ -57,10 +57,11 @@ class Task(BaseTask):
         grasp_height = 0.081+0.005*self.rng.uniform(-1, 1)
         target_pose = self.prism.get_pose().add_bias([0.0, 0.0, grasp_height])
         self.metadata['grasp_height'] = grasp_height
+        camera_up = np.array([0, 1, 0]) if self.is_zxhand else np.array([1, 0, 0])
         cpose = construct_grasp_pose(
             target_pose.p,
             [0, 0, 1],
-            [1, 0, 0]
+            camera_up
         )
         cid = self.prism.register_point(cpose, type='contact')
         self.move(self.atom.grasp_actor(

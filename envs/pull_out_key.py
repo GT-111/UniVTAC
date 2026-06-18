@@ -46,10 +46,11 @@ class Task(BaseTask):
         self.delay(10)
         target_pose = self.key.get_pose().add_bias([0, 0, self.rng.uniform(-0.015, -0.01)])
         target_mat = target_pose.to_transformation_matrix()
+        camera_up = target_mat[:3, 1] if self.is_zxhand else target_mat[:3, 0]
         cpose = construct_grasp_pose(
             target_pose.p,
             target_mat[:3, 2],
-            target_mat[:3, 0]
+            camera_up
         )
         self.cid = self.key.register_point(cpose, type='contact')
         self.move(self.atom.grasp_actor(

@@ -81,10 +81,11 @@ class Task(BaseTask):
         self.move(self.atom.open_gripper(0.5))
 
         target_pose = self.prism.get_pose().add_bias([0.0, 0.0, 0.04+0.01*self.rng.random()])
+        camera_up = np.array([0, 1, 0]) if self.is_zxhand else np.array([1, 0, 0])
         cpose = construct_grasp_pose(
             target_pose.p,
             [0, 0, 1],
-            [1, 0, 0]
+            camera_up
         )
         cid = self.prism.register_point(cpose, type='contact')
         self.move(self.atom.grasp_actor(

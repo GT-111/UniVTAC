@@ -47,10 +47,11 @@ class Task(BaseTask):
         ])
         self.grasp_noise = self.create_noise(euler=[0, [-np.pi/6, -np.pi/18], 0])
         self.metadata['grasp_noise'] = self.grasp_noise.tolist()
+        camera_up = target_mat[:3, 1] if self.is_zxhand else target_mat[:3, 0]
         target_pose = construct_grasp_pose(
             target_pose.p,
             target_mat[:3, 2],
-            target_mat[:3, 0],
+            camera_up,
         ).add_offset(self.grasp_noise)
         grasp_idx = self.can.register_point(
             pose=target_pose,

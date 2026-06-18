@@ -38,10 +38,11 @@ class Task(BaseTask):
         target_pose = bottle_pose.add_bias([-0.13, 0, -0.015])
         target_mat = target_pose.to_transformation_matrix()
         self.grasp_noise = self.create_noise(euler=[0, [-np.pi/12, 0.0], 0])
+        camera_up = target_mat[:3, 1] if self.is_zxhand else target_mat[:3, 0]
         target_pose = construct_grasp_pose(
             target_pose.p,
             target_mat[:3, 2],
-            target_mat[:3, 0]
+            camera_up
         ).add_offset(self.grasp_noise)
         grasp_idx = self.bottle.register_point(
             pose=target_pose,
