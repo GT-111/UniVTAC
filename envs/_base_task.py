@@ -1060,24 +1060,8 @@ class BaseTask(UipcRLEnv):
         for i in range(max_trials):
             success = self.move(self.atom.move_by_displacement(
                 z=delta, xyz_coord='local'
-            ), tag='try_forward', is_save=is_save, delay=False, cosntraint_pose=[1, 1, 1, 1, 1, 0])
-            actor_pose = actor.get_pose()
-            if np.linalg.norm(actor_pose.p - actor_last_pose.p) < np.abs(delta):
-                return False
-            actor_last_pose = actor_pose
-        return True
-
-    def try_forward(self, actor:Actor, dis=0.01, delta_d=0.004, is_save=True):
-        if self.plan_success is False:
-            return False
-
-        actor_last_pose = actor.get_pose()
-        max_trials = int(np.ceil(np.abs(dis/delta_d)))
-        delta = np.sign(dis) * delta_d
-        for i in range(max_trials):
-            success = self.move(self.atom.move_by_displacement(
-                z=delta, xyz_coord='local'
-            ), tag='try_forward', is_save=is_save, delay=False)
+            ), tag='try_forward', is_save=is_save, delay=False,
+                constraint_pose=[1, 1, 1, 1, 1, 0])
             actor_pose = actor.get_pose()
             if np.linalg.norm(actor_pose.p - actor_last_pose.p) < np.abs(delta):
                 return False
