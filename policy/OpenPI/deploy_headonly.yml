@@ -1,0 +1,8 @@
+policy_name: OpenPI
+seed: 0
+checkpoint_dir: /home/a25278/Workspaces/TactileWS/ckpts/pi05_insert_HDMI_60_epoch_headonly
+tactile_mode: head_only
+exec_horizon: 4
+tokenizer_path: /home/a25278/Workspaces/TactileWS/ckpts/paligemma_tokenizer.model
+instruction_type: seen
+instuction_file: null

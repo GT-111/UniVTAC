@@ -151,7 +151,8 @@ class Policy(BasePolicy):
         joint = obs["embodiment"]["joint"].cpu().numpy().astype(np.float32).flatten()
 
         # Map 4 sources → 3 model slots, same as openpi's UniVTACInputs
-        if   self.tactile_mode == "none":         img2, img3 = wrist_rgb, np.zeros_like(head_rgb)
+        if   self.tactile_mode == "head_only":     img2, img3 = np.zeros_like(head_rgb), np.zeros_like(head_rgb)
+        elif self.tactile_mode == "none":         img2, img3 = wrist_rgb, np.zeros_like(head_rgb)
         elif self.tactile_mode == "left_only":     img2, img3 = wrist_rgb, tac_left
         elif self.tactile_mode == "right_only":    img2, img3 = wrist_rgb, tac_right
         elif self.tactile_mode == "side_by_side":  img2, img3 = wrist_rgb, np.concatenate([tac_left, tac_right], axis=1)
@@ -200,9 +201,10 @@ class Policy(BasePolicy):
 
             act = actions[0, i].cpu().float().numpy()
             act_denorm = _t.unnormalize_quantile(act, self.a_q01, self.a_q99)
-            # HACK: training had double-delta (data already delta + DeltaActions).
-            # model ≈ state[t+1] - 2*state[t], so recover: act + 2*state0
-            act_abs = self._to_absolute(2.0 * state0, act_denorm)
+            # model predicts delta actions (qpos[t+1] - qpos[t]) for joints,
+            # absolute positions for gripper. Convert joints to absolute:
+            #   absolute_joint = current_joint + delta_joint
+            act_abs = self._to_absolute(state0, act_denorm)
 
             target_qpos = np.concatenate([act_abs[:7], act_abs[7:8]]).astype(np.float32)
 
