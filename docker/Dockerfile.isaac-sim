@@ -1,0 +1,64 @@
+# UniVTAC Isaac Sim image
+#
+# Layer: Isaac Sim 4.5 + PyTorch 2.8 cu128
+# Size: ~20 GB
+#
+FROM ghcr.io/univtac/base:latest
+
+LABEL org.opencontainers.image.description="UniVTAC Isaac Sim — Isaac Sim 4.5 + PyTorch cu128"
+
+# ── Create venv with Python 3.10 ─────────────────────────────────────
+RUN uv venv /workspace/.venv --python 3.10
+ENV VIRTUAL_ENV=/workspace/.venv
+ENV PATH=/workspace/.venv/bin:${PATH}
+
+# ── Isaac Sim 4.5 (giant ~15GB pip package) ──────────────────────────
+# Mounts host uv cache read-only; uses hardlinks (cp -rln) to seed the
+# writable BuildKit cache — instant, zero data copy, no re-download.
+# UV_HTTP_TIMEOUT=600 handles slow connections to pypi.nvidia.com.
+ARG OMNI_KIT_ACCEPT_EULA=NO
+ENV UV_HTTP_TIMEOUT=600
+RUN --mount=type=bind,from=uv-cache,source=.,target=/host-cache,ro \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -d /host-cache/wheels-v6 ]; then \
+        echo "[INFO] Linking host uv cache (hardlinks, zero copy)..."; \
+        cp -rln /host-cache/. /root/.cache/uv/ 2>/dev/null || true; \
+        echo "[INFO] Cache ready: $(du -sh /root/.cache/uv 2>/dev/null | cut -f1)"; \
+    else \
+        echo "[INFO] No host cache — downloading packages"; \
+    fi && \
+    uv pip install --python /workspace/.venv/bin/python \
+    'isaacsim[all,extscache]==4.5.0' \
+    --extra-index-url https://pypi.nvidia.com
+
+# ── PyTorch 2.8 + torchvision (CUDA 12.8) ────────────────────────────
+RUN --mount=type=bind,from=uv-cache,source=.,target=/host-cache,ro \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -d /host-cache/wheels-v6 ]; then \
+        cp -rln /host-cache/. /root/.cache/uv/ 2>/dev/null || true; \
+    fi && \
+    uv pip install --python /workspace/.venv/bin/python \
+    torch torchvision triton \
+    --extra-index-url https://download.pytorch.org/whl/cu128
+
+# ── Additional NVIDIA packages ───────────────────────────────────────
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /workspace/.venv/bin/python \
+    nvidia_cublas_cu12==12.8.3.14 \
+    nvidia_cuda_cupti_cu12==12.8.57 \
+    nvidia_cuda_nvrtc_cu12==12.8.61 \
+    nvidia_cuda_runtime_cu12==12.8.57 \
+    nvidia_cudnn_cu12==9.7.1.26 \
+    nvidia_cufft_cu12==11.3.3.41 \
+    nvidia_curand_cu12==10.3.9.55 \
+    nvidia_cusolver_cu12==11.7.2.55 \
+    nvidia_cusparse_cu12==12.5.7.53 \
+    nvidia_nccl_cu12==2.26.2 \
+    nvidia_nvjitlink_cu12==12.8.61 \
+    nvidia_nvtx_cu12==12.8.55 \
+    --extra-index-url https://pypi.nvidia.com
+
+# Verify Isaac Sim import works
+RUN /workspace/.venv/bin/python -c "import isaacsim; print('Isaac Sim OK')"
+
+WORKDIR /workspace

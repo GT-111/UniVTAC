@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "pull the cube to the target"
+    ],
+    "unseen": [
+        "pull the cube onto the goal region",
+        "drag the block to the target area",
+        "move the cube backward to the target"
+    ]
+}

@@ -70,7 +70,7 @@ policy_name: OpenPI
 seed: 0
 checkpoint_dir: $ckpt_path
 tactile_mode: head_only
-exec_horizon: 4
+exec_horizon: 32
 tokenizer_path: $CKPT_BASE/paligemma_tokenizer.model
 instruction_type: seen
 instuction_file: null

@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "poke the cube to the target with the peg"
+    ],
+    "unseen": [
+        "use the peg to push the cube to the goal",
+        "pick up the stick and poke the block",
+        "nudge the red cube to the target using the tool"
+    ]
+}

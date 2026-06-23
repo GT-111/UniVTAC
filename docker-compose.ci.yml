@@ -1,0 +1,37 @@
+# UniVTAC — Docker Compose (CI / reproduction mode)
+#
+# Pure image mode — no source volume mount. Uses the code baked into the image.
+# For reproducible evaluation runs and CI pipelines.
+#
+# Usage:
+#   docker compose -f docker-compose.ci.yml run --rm univtac \
+#     python scripts/eval_policy.py grasp_classify default OpenPI/deploy --total-num 50
+
+services:
+  univtac:
+    image: ghcr.io/univtac/univtac:latest
+    runtime: nvidia
+    environment:
+      - OMNI_KIT_ACCEPT_EULA=${OMNI_KIT_ACCEPT_EULA:-NO}
+      - OMNI_KIT_ALLOW_ROOT=1
+      - PYOPENGL_PLATFORM=egl
+      - EGL_PLATFORM=device
+      - MUJOCO_GL=egl
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - UNIVTAC_CKPTS_DIR=/workspace/checkpoints
+      - UNIVTAC_DATA_DIR=/workspace/univtac/data
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    volumes:
+      # Checkpoints (read-only)
+      - ${UNIVTAC_CKPTS_DIR:-./checkpoints}:/workspace/checkpoints:ro
+      # Results only — no source mount
+      - ./eval_result:/workspace/univtac/eval_result
+    network_mode: host
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -1,0 +1,57 @@
+# UniVTAC application image
+#
+# Full UniVTAC environment: Isaac Sim + Isaac Lab + TacEx + all policies.
+# Source code is COPY'd for the image, but docker-compose volume-mounts
+# override it at runtime for dev-mode (no rebuild needed when editing code).
+#
+FROM ghcr.io/univtac/tacex:latest
+
+LABEL org.opencontainers.image.description="UniVTAC — Unified Simulation Platform for Visuo-Tactile Manipulation"
+
+# ── Install remaining project Python dependencies ────────────────────
+# COPY just the dependency files first (layer caching: rebuild only when deps change)
+COPY pyproject.toml requirements.txt .python-version ./
+
+# Install project deps (skips already-installed: isaacsim, isaaclab, tacex, torch)
+RUN --mount=type=bind,from=uv-cache,source=.,target=/host-cache,ro \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -d /host-cache/wheels-v6 ]; then \
+        cp -rln /host-cache/. /root/.cache/uv/ 2>/dev/null || true; \
+    fi && \
+    uv pip install --python /workspace/.venv/bin/python -e . --no-deps \
+    && uv pip install --python /workspace/.venv/bin/python -r requirements.txt 2>/dev/null || true
+
+# ── Copy full project ────────────────────────────────────────────────
+# (docker-compose volume mount overrides this with live source at runtime)
+COPY . /workspace/univtac
+
+# ── Install curobo (editable, from third_party) ──────────────────────
+RUN --mount=type=bind,from=uv-cache,source=.,target=/host-cache,ro \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -d /host-cache/wheels-v6 ]; then \
+        cp -rln /host-cache/. /root/.cache/uv/ 2>/dev/null || true; \
+    fi && \
+    cd /workspace/univtac \
+    && uv pip install --python /workspace/.venv/bin/python -e third_party/curobo
+
+# ── Install UniVTAC itself as editable ──────────────────────────────
+RUN --mount=type=bind,from=uv-cache,source=.,target=/host-cache,ro \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -d /host-cache/wheels-v6 ]; then \
+        cp -rln /host-cache/. /root/.cache/uv/ 2>/dev/null || true; \
+    fi && \
+    cd /workspace/univtac \
+    && uv pip install --python /workspace/.venv/bin/python -e .
+
+# ── Env vars for checkpoints and data ────────────────────────────────
+ENV UNIVTAC_CKPTS_DIR=/workspace/checkpoints \
+    UNIVTAC_DATA_DIR=/workspace/univtac/data
+
+WORKDIR /workspace/univtac
+
+# Verify
+RUN /workspace/.venv/bin/python -c "import isaacsim; import isaaclab; import curobo; import tacex; print('UniVTAC OK')"
+
+# Default command (overridden by docker-compose)
+ENTRYPOINT ["/workspace/.venv/bin/python"]
+CMD ["-c", "import isaacsim; import isaaclab; import curobo; import tacex; print('UniVTAC ready.')"]

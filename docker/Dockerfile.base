@@ -1,0 +1,58 @@
+# UniVTAC base image
+#
+# Provides: CUDA 12.8 runtime, EGL/Vulkan rendering, uv
+#
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
+
+LABEL org.opencontainers.image.source=https://github.com/UniVTAC/UniVTAC
+LABEL org.opencontainers.image.description="UniVTAC base image — CUDA 12.8 + EGL + Vulkan + uv"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    # Rendering
+    PYOPENGL_PLATFORM=egl \
+    EGL_PLATFORM=device \
+    MUJOCO_GL=egl \
+    NVIDIA_DRIVER_CAPABILITIES=all
+
+# ── System dependencies (EGL, Vulkan, OpenGL, build tools) ───────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git wget curl ca-certificates unzip \
+        # EGL / OpenGL
+        libegl1 libegl1-mesa-dev libgl1 libgl1-mesa-glx libgles2 \
+        libglfw3 libosmesa6 libosmesa6-dev libglew-dev libglvnd-dev \
+        # Vulkan
+        libvulkan1 mesa-vulkan-drivers \
+        # X11 / misc
+        libglib2.0-0 libsm6 libxext6 libxrender-dev \
+        libxcb-xinerama0 libxkbcommon-x11-0 \
+        # Python build deps (needed for tacex_uipc C++ extension)
+        python3.10-dev \
+        # Misc utilities
+        pkg-config zip unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Vulkan ICD for NVIDIA GPU ────────────────────────────────────────
+# Skip writes when ICD files already exist (nvidia-container-runtime bind-mounts them read-only)
+RUN mkdir -p /usr/share/vulkan/icd.d /usr/share/glvnd/egl_vendor.d \
+    && { [ -s /usr/share/vulkan/icd.d/nvidia_icd.json ] \
+         || printf '{"file_format_version":"1.0.0","ICD":{"library_path":"libGLX_nvidia.so.0","api_version":"1.2.155"}}\n' \
+            > /usr/share/vulkan/icd.d/nvidia_icd.json; } \
+    && { [ -s /usr/share/glvnd/egl_vendor.d/10_nvidia.json ] \
+         || printf '{"file_format_version":"1.0.0","ICD":{"library_path":"libEGL_nvidia.so.0"}}\n' \
+            > /usr/share/glvnd/egl_vendor.d/10_nvidia.json; }
+
+# ── uv (fast Python package installer) ───────────────────────────────
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# ── Set up env for CUDA-aware builds ─────────────────────────────────
+ENV CUDA_HOME=/usr/local/cuda \
+    CUDA_PATH=/usr/local/cuda
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+
+# ── Isaac Sim EULA (accepted at build time) ──────────────────────────
+ARG OMNI_KIT_ACCEPT_EULA=NO
+ENV OMNI_KIT_ACCEPT_EULA=${OMNI_KIT_ACCEPT_EULA}
+
+WORKDIR /workspace

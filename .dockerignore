@@ -1,0 +1,69 @@
+# Virtual environments
+.venv/
+.env_isaaclab/
+third_party/TacEx/.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Git
+.git/
+.gitignore
+.gitmodules
+.gitattributes
+
+# Claude Code
+.claude/
+.agents/
+.skills/
+
+# Data & Results (mounted as volumes)
+data/
+eval_result/
+outputs/
+logs/
+dump/
+
+# Checkpoints (mounted as volumes)
+checkpoints/
+ckpts/
+**/act-ckpt/
+**/act_ckpt/
+policy/**/checkpoints*/
+policy/**/outputs*/
+policy/**/data*/
+encoder/checkpoints*
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+third_party/TacEx/build/
+third_party/curobo/build/
+third_party/TacEx/CMake*
+
+# Media
+*.png
+*.mp4
+*.log
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+.localrc.sh
+cvt.sh
+.python.env
+textures.zip
+
+# Large vendored dirs that aren't needed at runtime
+/third_party/isaacsim
+/third_party/isaacsim_isaacsim_link
+/third_party/libuipc-samples
+third_party/TacEx/docker/
+third_party/TacEx/experimental/
+third_party/TacEx/tools/

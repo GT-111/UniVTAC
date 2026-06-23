@@ -91,6 +91,9 @@ def eval_policy(
     start_seed, max_seed, test_total_num, instructions, instruciton_type:Literal['seen', 'unseen']='seen'
 ):
     test_num, succ_num, seed = 0, 0, start_seed
+    error_seeds: dict[int, str] = {}  # seed → failure_reason
+    early_stop_count = 0
+    timeout_count = 0
 
     seed_path = task.save_root.parent / 'seeds.json'
     seed_path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,12 +102,12 @@ def eval_policy(
             seed_status = json.load(f)
     else:
         seed_status = {}
- 
+
     while test_num < test_total_num and (max_seed == -1 or seed <= max_seed):
         if not seed_status.get(str(seed), True):
             seed += 1
             continue
-        
+
         if expert_check and str(seed) not in seed_status:
             test_start = time.perf_counter()
             task.mode = 'eval_test'
@@ -132,6 +135,8 @@ def eval_policy(
         test_num += 1
 
         succ = False
+        early_stop = False
+        failure_reason = ""
         eval_start = time.perf_counter()
         task.mode = 'eval'
         try:
@@ -145,18 +150,30 @@ def eval_policy(
                     succ = True
                     break
                 if task.check_early_stop():
+                    early_stop = True
+                    failure_reason = "early_stop"
                     break
+            if task.take_action_cnt >= task.cfg.step_lim:
+                timeout_count += 1
+                failure_reason = "timeout"
         except Exception as e:
-            log(f"[{test_num:<3d}] Seed {seed} occurred exception: {e}\n{traceback.format_exc()}")
+            failure_reason = f"{type(e).__name__}: {e!s:.120}"
+            log(f"[{test_num:<3d}] Seed {seed} ERROR ({type(e).__name__}): {e}\n{traceback.format_exc()}")
             succ_status = 'error'
+            error_seeds[seed] = failure_reason
             task.clean_cache(result=succ_status)
             test_num -= 1
         else:
             eval_cost = time.perf_counter() - eval_start
-            
+
             if succ:
                 succ_num += 1
-            succ_status = 'success' if succ else 'failed'
+                succ_status = 'success'
+            else:
+                succ_status = 'failed'
+                error_seeds[seed] = failure_reason or "unknown"
+                if early_stop:
+                    early_stop_count += 1
             task.clean_cache(result=succ_status)
             log(f"[{test_num:<3d}] Seed {seed} {succ_status} after {eval_cost:.2f} s.\n"
                 f"steps: {task.step_count:<5d}, actions: {task.take_action_cnt:<5d}.\n"
@@ -164,10 +181,19 @@ def eval_policy(
                 f"Total {succ_num}/{test_num}({succ_num/test_num*100:.2f}%) success.")
         finally:
             seed += 1
-    
+
+    # Summary of error seeds
+    if error_seeds:
+        log(f"\nError/Failure seeds: {len(error_seeds)}")
+        for s, reason in sorted(error_seeds.items()):
+            log(f"  seed {s}: {reason}")
+
     return {
         'test_num': test_num,
-        'succ_num': succ_num
+        'succ_num': succ_num,
+        'early_stop_count': early_stop_count,
+        'timeout_count': timeout_count,
+        'error_seeds': error_seeds,
     }
 
 def get_config(file, default_root:Path, type:Literal['yaml', 'json']):
@@ -258,7 +284,10 @@ def main():
         instructions=instructions,
         instruciton_type=deploy_config.get("instruction_type", "seen")
     )
-    log(f"Final Result: {results['succ_num']}/{results['test_num']}({results['succ_num']/results['test_num']*100:.2f}%) success.")
+    log(f"Final Result: {results['succ_num']}/{results['test_num']}({results['succ_num']/results['test_num']*100:.2f}%) success. "
+        f"Errors: {len(results.get('error_seeds', {}))}, "
+        f"Timeouts: {results.get('timeout_count', 0)}, "
+        f"Early stops: {results.get('early_stop_count', 0)}")
     
     task.close()
     policy.close()

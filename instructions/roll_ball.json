@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "roll the ball to the target"
+    ],
+    "unseen": [
+        "push the ball to the goal region",
+        "roll the blue ball across the table",
+        "send the ball to the far side of the table"
+    ]
+}

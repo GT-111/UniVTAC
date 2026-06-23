@@ -168,6 +168,10 @@ class Policy(BasePolicy):
         # --- input pipeline (matches training: UniVTACInputs → Normalize → Tokenize → Pad) ---
         state = np.concatenate([enc["joint"], enc["gripper"]]).astype(np.float32)
         state_n = _t.normalize_quantile(state, self.s_q01, self.s_q99)
+        # Gripper had near-zero variance in training (always ~0.0042).  Raw
+        # values avoid quantile-scale explosion and the model weights for these
+        # dims are effectively don't-care anyway.
+        state_n[..., 7:9] = state[..., 7:9]
         state_pad = _t.pad_to_dim(state_n, self.action_dim)
 
         prompt = getattr(task, "instruction", "perform the manipulation task")
@@ -199,8 +203,13 @@ class Policy(BasePolicy):
             if task.eval_success:
                 break
 
-            act = actions[0, i].cpu().float().numpy()
+            # Unpad: model outputs 32D (action_dim), but norm stats are 9D (pre-padding).
+            act = actions[0, i, :len(self.a_q01)].cpu().float().numpy()
             act_denorm = _t.unnormalize_quantile(act, self.a_q01, self.a_q99)
+            # Gripper dims (7-8): skip quantile unnormalize — training had zero
+            # variance, model output in [-1,1] → map linearly to [0, grip_max].
+            grip_max = 0.039
+            act_denorm[7:9] = (act[7:9] + 1.0) / 2.0 * grip_max
             # model predicts delta actions (qpos[t+1] - qpos[t]) for joints,
             # absolute positions for gripper. Convert joints to absolute:
             #   absolute_joint = current_joint + delta_joint

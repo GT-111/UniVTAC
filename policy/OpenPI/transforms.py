@@ -49,36 +49,23 @@ class NormStats:
 def normalize_quantile(x: np.ndarray, q01: np.ndarray, q99: np.ndarray) -> np.ndarray:
     """Quantile normalize: (x - q01) / (q99 - q01 + eps) * 2 - 1 → [-1, 1].
 
-    Zero-variance dims (q01 ≈ q99) are mapped to 0 to avoid exploding
-    out-of-distribution inputs confusing the model.
+    Matches the openpi training normalizer exactly.  Zero-variance dims
+    (q01 ≈ q99) are safe because the calling code ensures those dims stay
+    at their training value (e.g. gripper is closed before the policy runs).
     """
     n = x.shape[-1]
-    scale = q99[..., :n] - q01[..., :n]
-    # For near-zero-variance dims the model has no useful signal — output 0.
-    raw = np.divide(x - q01[..., :n], scale,
-                    out=np.zeros_like(x, dtype=np.float64),
-                    where=scale > 0.001)
-    # Clip to [0, 1] quantile range → [-1, 1] model input
-    raw = np.clip(raw, 0.0, 1.0)
-    return raw * 2.0 - 1.0
+    return (x - q01[..., :n]) / (q99[..., :n] - q01[..., :n] + 1e-6) * 2.0 - 1.0
 
 
 def unnormalize_quantile(x: np.ndarray, q01: np.ndarray, q99: np.ndarray) -> np.ndarray:
-    """Quantile unnormalize: inverse of normalize_quantile.
-
-    Zero-variance dims unmapped to q01 (the constant training value).
-    Model outputs in [-1, 1] → [q01, q99] real range.
-    """
+    """Quantile unnormalize: inverse of normalize_quantile (matches training)."""
     dim = q01.shape[-1]
-    scale = q99 - q01
-    # Treat near-zero-variance dims as constant
-    scale = np.where(scale > 0.001, scale, 1.0)
     if dim < x.shape[-1]:
         return np.concatenate([
-            (x[..., :dim] + 1.0) / 2.0 * scale + q01,
+            (x[..., :dim] + 1.0) / 2.0 * (q99 - q01 + 1e-6) + q01,
             x[..., dim:],
         ], axis=-1)
-    return (x + 1.0) / 2.0 * scale + q01
+    return (x + 1.0) / 2.0 * (q99 - q01 + 1e-6) + q01
 
 
 class DeltaActions:

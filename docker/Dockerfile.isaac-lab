@@ -1,0 +1,30 @@
+# UniVTAC Isaac Lab image
+#
+# Layer: Isaac Lab 2.1.1 (cloned + installed as editable packages)
+# Size: ~1 GB additional
+#
+FROM ghcr.io/univtac/isaac-sim:latest
+
+LABEL org.opencontainers.image.description="UniVTAC Isaac Lab — Isaac Lab 2.1.1"
+
+# ── Clone Isaac Lab at pinned version ────────────────────────────────
+RUN git clone --depth 1 --branch v2.1.1 \
+    https://github.com/isaac-sim/IsaacLab /workspace/IsaacLab
+
+# ── Install Isaac Lab packages into venv ─────────────────────────────
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /workspace/IsaacLab && \
+    uv pip install --python /workspace/.venv/bin/python \
+    -e source/isaaclab \
+    -e source/isaaclab_assets \
+    -e source/isaaclab_tasks \
+    -e source/isaaclab_rl \
+    --no-build-isolation
+
+# ── Remove .git to save space ────────────────────────────────────────
+RUN rm -rf /workspace/IsaacLab/.git
+
+# Verify
+RUN /workspace/.venv/bin/python -c "import isaaclab; print('Isaac Lab OK')"
+
+WORKDIR /workspace

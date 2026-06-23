@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "push the cube to the target"
+    ],
+    "unseen": [
+        "push the cube to the goal region",
+        "move the cube forward to the target area",
+        "nudge the block onto the red circle"
+    ]
+}

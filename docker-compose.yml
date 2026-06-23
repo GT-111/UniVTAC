@@ -1,0 +1,65 @@
+# UniVTAC — Docker Compose (dev mode)
+#
+# Usage:
+#   # Dev mode (source volume-mounted, edit code without rebuild):
+#   docker compose run --rm univtac python scripts/eval_policy.py grasp_classify default NullPolicy/deploy
+#
+#   # Shell inside the container:
+#   docker compose run --rm univtac bash
+#
+#   # CI / reproduction mode (no source mount, pure image):
+#   docker compose -f docker-compose.ci.yml run --rm univtac ...
+#
+# Prerequisites:
+#   - NVIDIA GPU + nvidia-container-toolkit
+#   - Accept Isaac Sim EULA: export OMNI_KIT_ACCEPT_EULA=YES
+#   - Checkpoints at ./checkpoints/ (or set UNIVTAC_CKPTS_DIR)
+
+services:
+  univtac:
+    image: ghcr.io/univtac/univtac:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.univtac
+      args:
+        OMNI_KIT_ACCEPT_EULA: "${OMNI_KIT_ACCEPT_EULA:-NO}"
+        CMAKE_CUDA_ARCHITECTURES: "${CMAKE_CUDA_ARCHITECTURES:-89}"
+    runtime: nvidia
+    environment:
+      # Isaac Sim
+      - OMNI_KIT_ACCEPT_EULA=${OMNI_KIT_ACCEPT_EULA:-NO}
+      - OMNI_KIT_ALLOW_ROOT=1
+      # Rendering
+      - PYOPENGL_PLATFORM=egl
+      - EGL_PLATFORM=device
+      - MUJOCO_GL=egl
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      # Display (for GUI, set DISPLAY=:0 on host)
+      - DISPLAY=${DISPLAY:-}
+      # UniVTAC paths
+      - UNIVTAC_CKPTS_DIR=/workspace/checkpoints
+      - UNIVTAC_DATA_DIR=/workspace/univtac/data
+      # GPU
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    volumes:
+      # Dev mode: mount source tree for live editing
+      - .:/workspace/univtac
+      # Checkpoints (read-only, multi-GB — don't bake into image)
+      - ${UNIVTAC_CKPTS_DIR:-./checkpoints}:/workspace/checkpoints:ro
+      # Data (read-write, persisted outside container)
+      - ${UNIVTAC_DATA_DIR:-./data}:/workspace/univtac/data
+      # Results (read-write, persisted outside container)
+      - ./eval_result:/workspace/univtac/eval_result
+      # X11 forwarding for GUI apps
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -1,0 +1,88 @@
+# UniVTAC TacEx image
+#
+# Multi-stage: borrows CUDA devel toolkit for the C++/CUDA build,
+# then discards it — keeping only the compiled .so artifacts at runtime.
+#
+# This is the highest-value Docker layer — eliminates the most painful
+# manual build step (vcpkg + gcc-11 + CUDA arch + libuipc for every user).
+#
+# Stage 1: nvidia/cuda:12.8.0-devel-ubuntu22.04  →  provides nvcc + CUDA headers
+# Stage 2: ghcr.io/univtac/isaac-lab:latest       →  runtime (receives /usr/local/cuda)
+#
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 AS cuda-devel
+
+# ── Runtime stage ────────────────────────────────────────────────────
+FROM ghcr.io/univtac/isaac-lab:latest
+
+LABEL org.opencontainers.image.description="UniVTAC TacEx — tactile sensor pipeline with C++/CUDA extension"
+
+# Copy full CUDA toolkit from devel image (nvcc + headers needed for cmake build)
+COPY --from=cuda-devel /usr/local/cuda /usr/local/cuda
+
+# ── Build dependencies ───────────────────────────────────────────────
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
+    gcc-11 g++-11 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set gcc-11 as default compiler (required by libuipc)
+ENV CC=gcc-11 CXX=g++-11
+
+# ── cmake 3.26 (Ubuntu 22.04 ships cmake 3.22, too old for libuipc) ─
+RUN wget -q https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh \
+    && chmod +x cmake-3.26.4-linux-x86_64.sh \
+    && mkdir -p /opt/cmake \
+    && ./cmake-3.26.4-linux-x86_64.sh --prefix=/opt/cmake --skip-license \
+    && rm cmake-3.26.4-linux-x86_64.sh
+ENV PATH="/opt/cmake/bin:${PATH}"
+
+# ── vcpkg (C++ package manager for libuipc dependencies) ────────────
+RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
+    && cd /opt/vcpkg \
+    && ./bootstrap-vcpkg.sh -disableMetrics
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV CMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+# ── CUDA architecture (sm_89 = RTX 4090 D, override at build time) ───
+ARG CMAKE_CUDA_ARCHITECTURES=89
+ENV CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}
+
+# ── Copy TacEx source ────────────────────────────────────────────────
+COPY third_party/TacEx /workspace/third_party/TacEx
+
+# ── Build tacex_uipc (C++/CUDA extension via setup.py CMakeBuild) ──
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /workspace/third_party/TacEx/source/tacex_uipc \
+    && uv pip install --python /workspace/.venv/bin/python -e .
+
+# ── Install uipc Python bindings ─────────────────────────────────────
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /workspace/third_party/TacEx/source/tacex_uipc/libuipc/python \
+    && uv pip install --python /workspace/.venv/bin/python -e .
+
+# ── Copy built .so files to where uipc expects them at runtime ──────
+RUN PYUIPC_SRC=$(find /workspace/third_party/TacEx/source/tacex_uipc/build -name "pyuipc*.so" -type f 2>/dev/null | head -1) \
+    && UIPC_PKG_DIR=$(/workspace/.venv/bin/python -c "import uipc; from pathlib import Path; print(Path(uipc.__file__).parent)") \
+    && UIPC_MODULES_DIR="$UIPC_PKG_DIR/modules/Release/bin" \
+    && mkdir -p "$UIPC_MODULES_DIR" \
+    && cp "$PYUIPC_SRC" "$UIPC_MODULES_DIR/" \
+    && for lib in $(find /workspace/third_party/TacEx/source/tacex_uipc/build -name "libuipc*.so" -type f 2>/dev/null); do \
+         cp "$lib" "$UIPC_MODULES_DIR/"; \
+       done \
+    && echo "[OK] tacex_uipc .so artifacts installed"
+
+# ── Install pure-Python TacEx packages ──────────────────────────────
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /workspace/.venv/bin/python \
+    /workspace/third_party/TacEx/source/tacex \
+    /workspace/third_party/TacEx/source/tacex_assets \
+    /workspace/third_party/TacEx/source/tacex_tasks
+
+# ── Clean up build artifacts to reduce image size ────────────────────
+RUN rm -rf /workspace/third_party/TacEx/source/tacex_uipc/build \
+    && rm -rf /root/.cache
+
+# Verify
+RUN /workspace/.venv/bin/python -c "import uipc; import tacex_uipc; import tacex; print('TacEx OK')"
+
+WORKDIR /workspace

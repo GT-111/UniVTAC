@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "place the sphere in the bin"
+    ],
+    "unseen": [
+        "put the ball into the tray",
+        "drop the sphere into the shallow bin",
+        "pick up the sphere and place it in the bin"
+    ]
+}

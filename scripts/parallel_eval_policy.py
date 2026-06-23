@@ -145,6 +145,7 @@ def worker_run(args, deploy_config, task_config, task_file_name, policy_name,
                     if task.check_early_stop():
                         break
             except Exception as e:
+                failure_reason = f"{type(e).__name__}: {e!s:.120}"
                 print(f"[Worker {worker_id}] Seed {seed} exception: {e}\n{traceback.format_exc()}")
                 succ_status = 'error'
                 task.clean_cache(result=succ_status)
@@ -160,6 +161,7 @@ def worker_run(args, deploy_config, task_config, task_file_name, policy_name,
                     'worker': worker_id,
                     'seed': seed,
                     'result': 'error',
+                    'failure_reason': failure_reason,
                     'cost': None,
                     'steps': None,
                     'actions': None,
@@ -186,6 +188,11 @@ def worker_run(args, deploy_config, task_config, task_file_name, policy_name,
                     'worker': worker_id,
                     'seed': seed,
                     'result': succ_status,
+                    'failure_reason': '' if succ_status == 'success' else (
+                        'timeout' if task.take_action_cnt >= task.cfg.step_lim else
+                        'early_stop' if getattr(task, 'check_early_stop', lambda: False)() else
+                        'unknown'
+                    ),
                     'cost': eval_cost,
                     'steps': task.step_count,
                     'actions': task.take_action_cnt,

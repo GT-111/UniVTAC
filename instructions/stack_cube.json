@@ -1,0 +1,10 @@
+{
+    "seen": [
+        "stack the red cube on the green cube"
+    ],
+    "unseen": [
+        "put the red cube on top of the green cube",
+        "stack the red cube on top of the green one",
+        "pick up the red block and place it on the green block"
+    ]
+}
