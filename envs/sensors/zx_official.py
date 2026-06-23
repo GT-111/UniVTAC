@@ -34,6 +34,11 @@ CAM_APERTURE = 0.0195
 LEFT_CAM = dict(translation=(0.0, 0.003, 0.037), euler_deg=(0.0, 0.0, 270.0))
 RIGHT_CAM = dict(translation=(0.0, -0.003, 0.037), euler_deg=(0.0, 0.0, 90.0))
 
+# Finger-body → gel-surface offsets as np.ndarray (for UIPC bridge & FK).
+# In the finger-body local frame, the camera (= gel surface) is mounted at:
+LEFT_CAM_LOCAL  = np.array(LEFT_CAM["translation"])   # (0.0,  0.003, 0.037)
+RIGHT_CAM_LOCAL = np.array(RIGHT_CAM["translation"])  # (0.0, -0.003, 0.037)
+
 
 def _ensure_display():
     disp = os.environ.get("XENSE_DISPLAY") or os.environ.get("DISPLAY") or ":1"

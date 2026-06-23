@@ -302,9 +302,13 @@ class TactileManager:
     def update(self, dt, force_recompute=False):
         obj_pose_7d = None
         if hasattr(self.task, "_actor_manager") and self.task._actor_manager.actors:
-            # Use the last actor as the manipulated object. For insertion tasks
-            # this skips the fixed slot/base and selects the plug/prism.
-            actor = next(reversed(self.task._actor_manager.actors.values()))
+            target_name = getattr(self.task.cfg, "manipulated_actor_name", None)
+            if target_name and target_name in self.task._actor_manager.actors:
+                actor = self.task._actor_manager.actors[target_name]
+            else:
+                # Fallback: last actor in the dict.  For insertion tasks with
+                # slot + plug, the plug is typically added last → correct.
+                actor = next(reversed(self.task._actor_manager.actors.values()))
             obj_pose_7d = actor.get_pose().tolist()
         for tact in self.tactiles.values():
             if obj_pose_7d is not None and hasattr(tact, "obj_pose_7d"):

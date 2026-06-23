@@ -3,7 +3,7 @@ import numpy as np
 
 @configclass
 class TaskCfg(BaseTaskCfg):
-    pass
+    manipulated_actor_name = "key"
 
 class Task(BaseTask):
     def __init__(self, cfg: TaskCfg, mode:Literal['collect', 'eval'] = 'collect', render_mode: str|None = None, **kwargs):

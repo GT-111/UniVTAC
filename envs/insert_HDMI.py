@@ -27,6 +27,7 @@ class TaskCfg(BaseTaskCfg):
         )
     ]
     step_lim = 600
+    manipulated_actor_name = "prism"
 
 class Task(BaseTask):
     def __init__(self, cfg: BaseTaskCfg, mode:Literal['collect', 'eval'] = 'collect', render_mode: str|None = None, **kwargs):

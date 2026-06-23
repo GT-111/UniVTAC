@@ -166,6 +166,11 @@ class BaseTaskCfg(DirectRLEnvCfg):
     adaptive_grasp_depth_threshold = None # in mm
     reset_time_limit: float = 120.0  # in seconds
 
+    # Name of the actor that is being manipulated (for FemSensor obj_pose tracking).
+    # When None (default), the last actor in the dict is used — correct for single-
+    # actor tasks.  Multi-actor tasks (insertion) should set this explicitly.
+    manipulated_actor_name: str | None = None
+
     cameras: list[CameraCfg] = [
         CameraCfg(
             name="head",
@@ -871,7 +876,7 @@ class BaseTask(UipcRLEnv):
             # The ZX gripper is PD-controlled (arm-only teleport, no gripper snap),
             # so resend the final waypoint and let the closed-chain linkage settle
             # onto the planned end pose.
-            if getattr(self._robot_manager, "robot_type", None) == "franka_zx_hand" \
+            if self._robot_manager.needs_post_settle \
                     and arm_seq is not None and arm_steps > 0:
                 fi = arm_steps - 1
                 self._robot_manager.set_arm(
@@ -931,11 +936,14 @@ class BaseTask(UipcRLEnv):
 
     def adaptive_set_gripper(self, qpos, depth_threshold:float=None):
         max_steps = 1000
-        default_step, contact_step = 0.0005, 0.00005
-        if getattr(self._robot_manager, "robot_type", None) == "franka_zx_hand":
-            # ZX hand gripper is angular (rad), not prismatic (m).
-            default_step, contact_step = 0.012, 0.003
-        last_qpos = self._robot_manager.get_gripper_qpos()
+        # Use Robot ABC step properties when available, fall back to defaults
+        robot = self._robot_manager
+        if hasattr(robot, 'adaptive_grasp_step_coarse'):
+            default_step = robot.adaptive_grasp_step_coarse
+            contact_step = robot.adaptive_grasp_step_fine
+        else:
+            default_step, contact_step = 0.0005, 0.00005
+        last_qpos = robot.get_gripper_qpos()
         max_depth = self.cfg.robot.tactile_far_plane \
             * torch.ones_like(self._tactile_manager.get_min_depth()) # mm
         if depth_threshold is not None:
@@ -1067,3 +1075,28 @@ class BaseTask(UipcRLEnv):
                 return False
             actor_last_pose = actor_pose
         return True
+
+    def _restore_primvar_color(self, actor: Actor, rgb: tuple[float, float, float]):
+        """Restore constant ``displayColor`` on a USD mesh prim.
+
+        Tet-mesh generation replaces the original colour primvar with random
+        per-face values.  This removes the broken primvar and recreates it
+        as constant colour.
+        """
+        try:
+            from pxr import UsdGeom, Sdf, Vt
+            prim = actor._prim_view.prims[0]
+            if prim.GetTypeName() != "Mesh":
+                for child in prim.GetChildren():
+                    if child.GetTypeName() == "Mesh":
+                        prim = child
+                        break
+            mesh = UsdGeom.Mesh(prim)
+            pv_api = UsdGeom.PrimvarsAPI(mesh)
+            pv_api.RemovePrimvar("displayColor")
+            pv = pv_api.CreatePrimvar(
+                "displayColor", Sdf.ValueTypeNames.Color3fArray, "constant",
+            )
+            pv.Set(Vt.Vec3fArray([rgb]))
+        except Exception:
+            pass  # colour is cosmetic — never fail a reset because of it

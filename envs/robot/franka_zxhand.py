@@ -2,6 +2,14 @@
 
 Angular gripper (0 – 0.99 rad), velocity bang-bang control, end-effector
 pose from cuRobo forward kinematics (no panda_hand body exists in the ZX USD).
+
+.. note::
+    This class is **registered** (``@register_robot("franka_zxhand")``) but
+    **not currently instantiated** at runtime.  The active ZX hand code path
+    is ``RobotManager`` in ``envs/robot/robot.py`` (``robot_type == 'franka_zx_hand'``).
+    The duplicate helpers (_gel_point, _gel_midpoint, …) between this file
+    and ``robot.py`` exist because this file is a clean reference
+    implementation that may be adopted later via ``create_robot()``.
 """
 
 from __future__ import annotations

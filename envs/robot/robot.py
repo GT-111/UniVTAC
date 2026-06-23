@@ -408,3 +408,64 @@ class RobotManager:
     
     def get_grasp_perfect_direction(self):
         return 'top_down'
+
+    @property
+    def needs_post_settle(self) -> bool:
+        """Whether the arm needs extra settle steps after a trajectory."""
+        return self.robot_type == 'franka_zx_hand'
+
+    @property
+    def adaptive_grasp_step_coarse(self) -> float:
+        """Coarse step size for adaptive grasping (robot-native units)."""
+        return 0.012 if self.robot_type == 'franka_zx_hand' else 0.0005
+
+    @property
+    def adaptive_grasp_step_fine(self) -> float:
+        """Fine (contact) step size for adaptive grasping (robot-native units)."""
+        return 0.003 if self.robot_type == 'franka_zx_hand' else 0.00005
+
+    @property
+    def grasp_open_axis_index(self) -> int:
+        """Which column of the rotation matrix points along the gripper open direction."""
+        return 1 if self.robot_type == 'franka_zx_hand' else 0
+
+    @property
+    def grasp_height_clearance(self) -> float:
+        """Extra Z clearance (m) needed above an object for safe approach."""
+        return 0.02 if self.robot_type == 'franka_zx_hand' else 0.0
+
+    def build_grasp_pose(
+        self,
+        target_position: np.ndarray,
+        approach_direction: np.ndarray,
+        object_x_axis: np.ndarray | None = None,
+    ) -> Pose:
+        """Build a grasp pose corrected for this embodiment's gripper geometry."""
+        from ..utils.transforms import construct_grasp_pose
+
+        if object_x_axis is None:
+            object_x_axis = np.array([1.0, 0.0, 0.0])
+
+        adjusted_position = np.asarray(target_position, dtype=float).copy()
+        adjusted_position[2] += self.grasp_height_clearance
+
+        idx = self.grasp_open_axis_index
+        if idx == 0:
+            up_axis = object_x_axis
+        else:
+            up_axis = np.cross(approach_direction, object_x_axis)
+            up_norm = np.linalg.norm(up_axis)
+            if up_norm < 1e-8:
+                if abs(approach_direction[2]) < 0.9:
+                    up_axis = np.cross(approach_direction, np.array([0.0, 0.0, 1.0]))
+                else:
+                    up_axis = np.cross(approach_direction, np.array([1.0, 0.0, 0.0]))
+                up_norm = np.linalg.norm(up_axis)
+                if up_norm < 1e-8:
+                    up_axis = np.array([0.0, 1.0, 0.0])
+                else:
+                    up_axis = up_axis / up_norm
+            else:
+                up_axis = up_axis / up_norm
+
+        return construct_grasp_pose(adjusted_position, approach_direction, up_axis)
