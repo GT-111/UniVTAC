@@ -8,6 +8,8 @@ from tacex_assets.robots.franka.franka_zx_hand_gripper_uipc import (
     FRANKA_PANDA_ARM_ZX_HAND_HIGH_PD_CFG
 )
 
+from pathlib import Path
+
 from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
 import isaaclab.sim as sim_utils
@@ -26,6 +28,9 @@ class RobotCfg:
     tactile_far_plane: float = 30.0 # in mm
     adaptive_grasp_depth_threshold: float = 27.5 # in mm, used for grasping
     contact_threshold: tuple[float, float] = (27.5, 28.0) # in mm, used in `gravity_rotate` api
+
+    use_adaptive_grasp: bool = True
+    wrist_camera_prim_path: str = "/World/envs/env_.*/Robot/WristCamera/Camera"
 
 def create_franka_gsmini_gripper(data_type:list[str]):
     robot = FRANKA_PANDA_ARM_GSMINI_GRIPPER_HIGH_PD_HIGH_RES_UIPC_CFG.replace(
@@ -116,17 +121,21 @@ def create_franka_gf225_gripper(data_type:list[str]):
     )
 
 def create_franka_zx_hand_gripper(data_type: list[str]):
-    """ZX hand with embedded FEM gel-block proxies (StableNeoHookean).
+    """ZX hand with official xense USD + GelSight-aligned UIPC collision.
 
-    The custom USD ``franka_zx_hand_with_gel.usd`` includes pre-baked
-    gel blocks at ``/panda/zx_gel_left`` and ``/panda/zx_gel_right``
-    — loaded via Fabric just like gsmini gel pads.  The bridge code
-    then hooks up per-vertex SoftPositionConstraint tracking.
+    Uses the official ``franka_zx_hand_real.usd`` from third_party/xense-sim4.5.
+    UIPC collision bridging uses ``ZxGelpad`` / ``ZxRodProxy`` — the same
+    ``UipcObject`` + ``UipcIsaacAttachments`` pattern as GelSight gel pads.
+    Tactile sensing is handled by ``OfficialZXTactileSensor`` (xense plugin).
     """
+    _XENSE_USD = (
+        Path(__file__).resolve().parents[2]
+        / "third_party/xense-sim4.5/xense/isaac/xense_assets/franka_zx_hand_real.usd"
+    )
     robot = FRANKA_PANDA_ARM_ZX_HAND_HIGH_PD_CFG.replace(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=str(ASSETS_ROOT / "franka_zx_hand_with_gel.usd"),
+            usd_path=str(_XENSE_USD),
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -185,6 +194,8 @@ def create_franka_zx_hand_gripper(data_type: list[str]):
         tactile_far_plane=1.0,
         adaptive_grasp_depth_threshold=-1.5,
         contact_threshold=(-2.0, -1.5),
+        use_adaptive_grasp=False,
+        wrist_camera_prim_path="/World/envs/env_.*/Robot/right_base_link/Hand_Camera",
     )
 
 

@@ -92,10 +92,12 @@ class Task(BaseTask):
             self.prism, contact_point_id=cid, pre_dis=0.04, dis=0.0, is_close=False
         ))
         if self.is_zxhand:
-            # ZX hand gripper is angular; close adaptively on the thin prism
-            # rather than commanding a GelSight-specific metric finger gap.
-            self.cfg.use_adaptive_grasp = True
-            self.move(self.atom.close_gripper())
+            # ZX hand uses velocity bang-bang (no PD feedback).
+            # Adaptive grasp injects constant velocity → UIPC solver diverges.
+            # Use a fixed angular target instead; fingers will stall on the
+            # object naturally because the velocity motor can't overpower
+            # the closed-chain linkage at small angles.
+            self.move(self.atom.close_gripper(0.25))
         else:
             gripper_qpos = self.rng.uniform(0.0065, 0.0075) / 0.039
             self.move(self.atom.close_gripper(gripper_qpos))

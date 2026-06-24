@@ -157,9 +157,21 @@ class RobotManager:
         3D offset (in the cuRobo panda_hand frame) at the open/grasp pose.
         """
         hand = self._curobo_ee_in_root()
+        gel_mid = self._gel_midpoint()
+        # TCP→EE offset (EE = hand, TCP = gel mid).
+        # construct_grasp_pose sets local Z = -approach_dir = [0,0,-1].
+        # R_grasp @ [0,0,X] = [0,0,-X] in world, so offset.p[2] must be
+        # NEGATIVE so that R @ offset pushes EE UPWARD in world:
+        #   R_grasp @ offset.p → [0, 0, -offset.p[2]] = [0, 0, +0.225].
+        # offset_local = hand→gel in hand-local coords ≈ [0, 0, +0.225]
+        # (hand body Z maps to world -Z, so R_hand.T flips sign).
+        # We negate to get EE→TCP direction in the grasp-pose frame.
         R_hand = hand.to_transformation_matrix()[:3, :3]
-        offset_local = R_hand.T @ (self._gel_midpoint() - hand.p)
-        return Pose(p=(-offset_local).tolist(), q=[1.0, 0.0, 0.0, 0.0])
+        offset_local = R_hand.T @ (gel_mid - hand.p)
+        offset = Pose(p=(-offset_local).tolist(), q=[1.0, 0.0, 0.0, 0.0])
+        print(f"[ZX Calib] hand={hand.p} gel_mid={gel_mid} "
+              f"offset_local={offset_local} offset={offset.p}")
+        return offset
 
     @staticmethod
     def _iter_descendants(prim):
@@ -432,7 +444,7 @@ class RobotManager:
     @property
     def grasp_height_clearance(self) -> float:
         """Extra Z clearance (m) needed above an object for safe approach."""
-        return 0.02 if self.robot_type == 'franka_zx_hand' else 0.0
+        return 0.03 if self.robot_type == 'franka_zx_hand' else 0.0
 
     def build_grasp_pose(
         self,

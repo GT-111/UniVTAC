@@ -261,34 +261,20 @@ class BaseTask(UipcRLEnv):
     
     def load_robot_and_sensors(self, cfg:BaseTaskCfg):
         data_type = ["camera_depth", "tactile_rgb", "marker_rgb", "marker_motion"]
-        if cfg.tactile_sensor_type == 'gsmini':
-            cfg.robot = create_franka_gsmini_gripper(data_type=data_type)
-        elif cfg.tactile_sensor_type == 'gf225':
-            cfg.robot = create_franka_gf225_gripper(data_type=data_type)
-        elif cfg.tactile_sensor_type == 'zxhand':
-            cfg.robot = create_franka_zx_hand_gripper(data_type=data_type)
-            # ZX hand has no WristCamera; the official plugin uses Hand_Camera
-            # mounted under right_base_link as the wrist-equivalent view.
-            for camera in cfg.cameras:
-                if getattr(camera, "name", None) == "wrist":
-                    camera.prim_path = "/World/envs/env_.*/Robot/right_base_link/Hand_Camera"
-        else:
-            raise ValueError(f'Unknown tactile sensor type: {cfg.tactile_sensor_type}')
-        
-        if cfg.tactile_sensor_type == 'zxhand':
-            # The official ZX example commands a smooth open/close ramp (constant
-            # velocity), not the contact-adaptive stepping used for GelSight. The
-            # ZX closed-chain linkage moves jerkily, so adaptive_set_gripper
-            # overshoots and rams the gripper shut even on an "open" command.
-            # Use the plain plan_gripper ramp instead.
-            cfg.use_adaptive_grasp = False
-            # Per-task adaptive_grasp_depth_threshold values are tuned in GelSight
-            # millimetre units (~27 mm). The ZX embodiment reports processed
-            # camera depth (rest ~+1 mm, full indentation ~-4 mm), so always use
-            # the embodiment's own threshold and ignore the gsmini-tuned override.
+        cfg.robot = create_robot_cfg(cfg.tactile_sensor_type, data_type=data_type)
+
+        # Per-embodiment camera path override (single dispatch via RobotCfg field).
+        for camera in cfg.cameras:
+            if getattr(camera, "name", None) == "wrist":
+                camera.prim_path = cfg.robot.wrist_camera_prim_path
+
+        # Per-embodiment adaptive grasp default (tasks may override).
+        cfg.use_adaptive_grasp = cfg.robot.use_adaptive_grasp
+
+        # Embodiment-default depth threshold unless task explicitly overrides.
+        if cfg.adaptive_grasp_depth_threshold is None:
             cfg.adaptive_grasp_depth_threshold = cfg.robot.adaptive_grasp_depth_threshold
-        elif cfg.adaptive_grasp_depth_threshold is None:
-            cfg.adaptive_grasp_depth_threshold = cfg.robot.adaptive_grasp_depth_threshold
+
         return cfg
  
     def _setup_save(self):
@@ -319,9 +305,9 @@ class BaseTask(UipcRLEnv):
         self._setup_base_scene()
         self.scene.clone_environments(copy_from_source=False)
 
-        # ZX finger collision proxies: create UIPC objects (after clone, before setup_sim)
-        if self._zx_finger_collision is not None:
-            self._zx_finger_collision.create_uipc_objects()
+        # ZX hand collision proxies: create UIPC objects (after clone, before setup_sim)
+        if self._zx_gelpad_manager is not None:
+            self._zx_gelpad_manager.create_uipc_objects()
 
         self._actor_manager = ActorManager(self)
         self.create_actors()
@@ -344,12 +330,12 @@ class BaseTask(UipcRLEnv):
         # add lights
         self.cfg.light.spawn.func(self.cfg.light.prim_path, self.cfg.light.spawn)
 
-        # ZX finger collision proxies: create USD prims (before clone)
-        self._zx_finger_collision = None
+        # ZX hand collision proxies: create USD prims (before clone)
+        self._zx_gelpad_manager = None
         if self.is_zxhand:
-            from envs.utils.zx_finger_collision import ZxFingerCollisionManager
-            self._zx_finger_collision = ZxFingerCollisionManager(self)
-            self._zx_finger_collision.create_usd_prims()
+            from envs.utils.zx_gelpad import ZxGelpadManager
+            self._zx_gelpad_manager = ZxGelpadManager(self)
+            self._zx_gelpad_manager.create_usd_prims()
 
     def create_noise(self, vec=[0.0, 0.0, 0.0], euler=[0.0, 0.0, 0.0]) -> Pose:
         '''Create random noise pose'''
@@ -519,8 +505,8 @@ class BaseTask(UipcRLEnv):
         self.metadata = {}
         self.log = ''
 
-        if self._zx_finger_collision is not None:
-            self._zx_finger_collision.reset()
+        if self._zx_gelpad_manager is not None:
+            self._zx_gelpad_manager.reset()
 
     def pause(self):
         self.sim.pause()
